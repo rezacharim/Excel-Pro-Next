@@ -87,7 +87,7 @@ const HeroSection: NextPage = () => {
             width={500}
             height={400}
             loading="eager"
-            alt="Professional football training at Excel Pro Football Academy"
+            alt="Youth soccer training session at Excel Pro Soccer Academy in Markham"
             className="w-full h-full object-cover rounded-r-lg"
             priority
           />
@@ -101,7 +101,7 @@ const HeroSection: NextPage = () => {
             variants={itemVariants}
           >
             Excel Pro Soccer Academy | Professional Soccer Training for Youth
-            in Toronto
+            in Markham &amp; the GTA
           </motion.h1>
 
           <motion.p
@@ -148,7 +148,7 @@ const HeroSection: NextPage = () => {
             width={400}
             height={200}
             loading="lazy"
-            alt="Professional football training session at Excel Pro Academy"
+            alt="Kids practicing soccer drills at Excel Pro Soccer Academy in Markham"
             className="w-full h-48 object-cover"
           />
         </motion.div>

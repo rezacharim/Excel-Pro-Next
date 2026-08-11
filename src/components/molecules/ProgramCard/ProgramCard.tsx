@@ -49,7 +49,7 @@ const ProgramCard: NextPage<ProgramCardProps> = ({
           <div className="relative h-full w-full">
             <Image
               src={imageSrc}
-              alt={`${ageGroup} character`}
+              alt={`${ageGroup} youth soccer program illustration — Excel Pro Soccer Academy Markham`}
               fill
               sizes="(max-width: 768px) 100vw, 50vw"
               className="object-contain object-right-bottom"

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
 import "../globals.css";
 import Layout from "@/components/template/Layout";
@@ -5,8 +6,12 @@ import Layout from "@/components/template/Layout";
 
 const montserrat = Montserrat({
   weight: ['400', '500', '600', '700'],
-  subsets: ['latin'], 
+  subsets: ['latin'],
 });
+
+export const metadata: Metadata = {
+  metadataBase: new URL("https://www.excelproso.com"),
+};
 
 export default function RootLayout({
   children,

@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   title: "Receipt | Excel Pro Soccer Academy",
   description:
     "Payment receipt and annual statements for Excel Pro Soccer Academy families.",
-  robots: { index: false },
+  robots: { index: false, follow: false },
 };
 
 const ReceiptPage = () => {

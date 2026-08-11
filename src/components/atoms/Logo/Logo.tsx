@@ -6,7 +6,7 @@ const Logo = () => {
     <>
         <Image 
         src={LogoImage}
-        alt="ExcelPro-logo"
+        alt="Excel Pro Soccer Academy Markham logo"
         width={42}
         height={42}
         className="h-11 w-auto"

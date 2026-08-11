@@ -197,17 +197,19 @@ export default async function Home() {
             Excel Pro Football Academy - Toronto&apos;s Premier Soccer Training
           </h2>
           <p>
-            Welcome to Excel Pro Football Academy, the largest Iranian-based
-            soccer academy in Toronto. Founded by former Iran National Team and
-            Persepolis FC player Reza Abedian, we offer professional soccer
-            training for youth ages 5
-            to 18. Our programs focus on developing technical skills, teamwork,
-            strategy, and athletic excellence both on and off the field.
+            Welcome to Excel Pro Football Academy, a youth soccer academy in
+            Markham, Ontario and the largest Iranian-based soccer academy in the
+            Toronto area. Founded by former Iran National Team and Persepolis FC
+            player Reza Abedian, we offer professional soccer training for youth
+            ages 5 to 18. Our programs focus on developing technical skills,
+            teamwork, strategy, and athletic excellence both on and off the
+            field.
           </p>
           <p>
             With over 500 students, 18 years of experience, 12 professional
             coaches, and 10 awards won, Excel Pro Academy has established itself
-            as a leader in youth soccer development in Toronto.
+            as a leader in youth soccer development across Markham, Toronto and
+            the GTA.
           </p>
         </section>
       </main>

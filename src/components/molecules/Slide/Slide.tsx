@@ -16,7 +16,11 @@ const Slide: NextPage<SlideProps> = ({ player_name, image_url }) => {
     <div className="min-w-full h-full relative flex-shrink-0">
       <Image
         src={image_url ? `${image_url}` : "/images/billboard/teams2.jpeg"}
-        alt={shouldShowPlayerName ? `${player_name} player image` : "Team image"}
+        alt={
+          shouldShowPlayerName
+            ? `${player_name} — Excel Pro Soccer Academy player of the month`
+            : "Excel Pro Soccer Academy youth teams in Markham, Ontario"
+        }
         quality="100"
         fill={true}
         priority={true}

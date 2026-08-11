@@ -77,6 +77,10 @@ const Footer = () => {
 
         {/* Copyright - Both Views */}
         <div className="mt-8 pt-4 border-t text-center text-white text-sm">
+          <p className="mb-2">
+            Youth soccer academy in Markham, Ontario — proudly serving families
+            across the GTA.
+          </p>
           <p>
             © {new Date().getFullYear()} Excel Pro Academy. All rights reserved.
           </p>

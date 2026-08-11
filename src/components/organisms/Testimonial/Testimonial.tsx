@@ -128,7 +128,7 @@ const Testimonial: NextPage = () => {
             >
               <Image
                 src={currentTestimonial.image_index}
-                alt="Academy testimonial"
+                alt="Parent and player testimonial — Excel Pro Soccer Academy Markham"
                 fill
                 sizes="(max-width: 768px) 100vw, 50vw"
                 className="object-cover object-center object-top" 
@@ -357,7 +357,7 @@ const Testimonial: NextPage = () => {
             >
               <Image
                 src={currentTestimonial.image_index}
-                alt="Academy testimonial"
+                alt="Parent and player testimonial — Excel Pro Soccer Academy Markham"
                 fill
                 sizes="(max-width: 1024px) 40vw, 30vw"
                 className="object-cover object-top"

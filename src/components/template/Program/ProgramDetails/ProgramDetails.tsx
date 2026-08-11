@@ -95,7 +95,7 @@ const ProgramDetails: NextPage<ProgramType> = ({ program, decodedSlug }) => {
           <div className="relative w-full h-[500px] md:h-[550px] lg:h-[600px]">
             <Image
               src={program.team_image}
-              alt={`${program.ageGroup} Program`}
+              alt={`Excel Pro ${program.ageGroup.replace(/\s*–\s*/g, "-")} players training in Markham`}
               fill
               sizes="(max-width: 768px) 100vw, 50vw"
               className="object-center object-cover"

@@ -4,9 +4,25 @@ import Sponsors from "@/components/template/Sponsors/Sponsors";
 export const metadata: Metadata = {
   title: "Sponsors & Partners | Excel Pro Soccer Academy",
   description:
-    "Meet the sponsors and partners of Excel Pro Soccer Academy - local businesses helping young players grow in Markham and the GTA. Learn how your business can sponsor our youth soccer programs.",
+    "Meet the sponsors and partners behind Excel Pro Soccer Academy in Markham, Ontario — and learn how your business can support youth soccer across the GTA.",
   alternates: {
     canonical: "https://www.excelproso.com/sponsors",
+  },
+  openGraph: {
+    title: "Sponsors & Partners | Excel Pro Soccer Academy",
+    description:
+      "Meet the sponsors and partners behind Excel Pro Soccer Academy in Markham, Ontario — and learn how your business can support youth soccer across the GTA.",
+    type: "website",
+    url: "https://www.excelproso.com/sponsors",
+    siteName: "Excel Pro Soccer Academy",
+    images: [
+      {
+        url: "/images/billboard/teams.webp",
+        width: 1200,
+        height: 630,
+        alt: "Excel Pro Soccer Academy youth teams in Markham, Ontario",
+      },
+    ],
   },
 };
 

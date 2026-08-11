@@ -248,7 +248,7 @@ const ContactForm = () => {
           <div className="p-2">
             <Image
               src="/images/logo/excelpro_sec.png"
-              alt="Logo"
+              alt="Excel Pro Soccer Academy Markham logo"
               width={56}
               height={56}
               className="object-contain"
@@ -258,7 +258,7 @@ const ContactForm = () => {
         <div className="w-full h-full relative">
           <Image
             src="/images/person/get_in_touch.webp"
-            alt="Coaches"
+            alt="Excel Pro Soccer Academy coaches with young players at training in Markham"
             fill={true}
             sizes="(max-width: 768px) 100vw, 50vw"
             priority={true}

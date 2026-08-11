@@ -205,7 +205,7 @@ const AboutSection: NextPage<AboutSectionProps> = ({ teamImages }) => {
               >
                 <Image
                   src="/images/person/team/u7.webp"
-                  alt="Excel Pro Soccer Team"
+                  alt="Excel Pro Soccer Academy youth team photo in Markham, Ontario"
                   width={629}
                   height={445}
                   className="rounded-r-3xl w-full h-auto"

@@ -8,6 +8,10 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "https://www.excelproso.com/account",
   },
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 const AccountPage = () => {

@@ -6,6 +6,7 @@ import SummeryServices from "@/components/organisms/SummeryServices/SummeryServi
 import WhyCooseUs from "./../../organisms/WhyCooseUs/WhyCooseUs";
 import Testimonial from "@/components/organisms/Testimonial/Testimonial";
 import ContactForm from "@/components/organisms/ContactForm/ContactForm";
+import InstagramFeed from "@/components/organisms/InstagramFeed/InstagramFeed";
 import { PlayerProvider } from "@/context/PlayerContext/PlayerContext";
 import { fetchAllPlayerMonth } from "@/services/getPlayerMonth";
 
@@ -30,6 +31,7 @@ const Landing = async () => {
         <WhyCooseUs />
       </section>
         <Testimonial />
+      <InstagramFeed />
       <section>
         <ContactForm />
       </section>

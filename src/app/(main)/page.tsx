@@ -101,6 +101,14 @@ export default async function Home() {
         addressRegion: "ON",
         addressCountry: "CA",
       },
+      areaServed: [
+        { "@type": "City", name: "Markham" },
+        { "@type": "City", name: "Richmond Hill" },
+        { "@type": "City", name: "North York" },
+        { "@type": "City", name: "Aurora" },
+        { "@type": "City", name: "Toronto" },
+        { "@type": "City", name: "Vaughan" },
+      ],
       contactPoint: {
         "@type": "ContactPoint",
         telephone: "+1-647-703-7821",

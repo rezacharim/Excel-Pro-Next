@@ -165,7 +165,8 @@ const Summary = () => {
           >
             At Excel Pro Soccer Academy we provide elite soccer training for
             boys and girls aged 5 to 18. Based in Markham, Ontario and serving
-            Toronto and the entire GTA, our academy focuses on developing
+            Richmond Hill, North York, Aurora, Toronto and the entire GTA, our
+            academy focuses on developing
             technical skills, game intelligence, and a lifelong passion for
             soccer.
           </motion.p>

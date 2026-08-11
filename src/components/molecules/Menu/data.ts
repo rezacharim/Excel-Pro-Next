@@ -9,4 +9,5 @@ export const menuItems: MenuItem[] = [
     { id: 5, label: "Matchday", href: "/matchday" },
     { id: 8, label: "Sponsors", href: "/sponsors" },
     { id: 6, label: "Contact Us", href: "/contact-us"},
+    { id: 9, label: "My Account", href: "/account" },
 ];

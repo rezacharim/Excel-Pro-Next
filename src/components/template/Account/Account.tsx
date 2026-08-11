@@ -11,7 +11,6 @@ import {
   getPortalMe,
   portalLogin,
   requestHold,
-  requestInstallments,
 } from "@/services/portal";
 
 const TOKEN_KEY = "portal_token";
@@ -329,128 +328,6 @@ const HoldModal = ({
   );
 };
 
-const InstallmentModal = ({
-  player,
-  token,
-  onClose,
-  onSuccess,
-  onAuthError,
-}: {
-  player: PortalPlayer;
-  token: string;
-  onClose: () => void;
-  onSuccess: () => void;
-  onAuthError: () => void;
-}) => {
-  const [totalAmount, setTotalAmount] = useState("");
-  const [installments, setInstallments] = useState(2);
-  const [note, setNote] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const submit = async () => {
-    setError("");
-    const amount = parseFloat(totalAmount);
-    if (!amount || amount <= 0) {
-      setError("Please enter the total amount to split.");
-      return;
-    }
-    setLoading(true);
-    try {
-      await requestInstallments(token, {
-        userId: player.id,
-        totalAmount: amount,
-        installments,
-        ...(note.trim() ? { note: note.trim() } : {}),
-      });
-      onSuccess();
-    } catch (err) {
-      if (err instanceof PortalAuthError) {
-        onAuthError();
-        return;
-      }
-      setError(
-        err instanceof Error ? err.message : "Could not send your request"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <ModalShell
-      title={`Installment plan — ${player.fullname}`}
-      onClose={onClose}
-    >
-      <p className="text-sm text-gray-600 mb-4">
-        Ask to split a payment into smaller monthly payments. The academy will
-        review and confirm by email.
-      </p>
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Total amount (CAD)
-          </label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={totalAmount}
-            onChange={(e) => setTotalAmount(e.target.value)}
-            placeholder="e.g. 500"
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Number of payments
-          </label>
-          <select
-            value={installments}
-            onChange={(e) => setInstallments(parseInt(e.target.value, 10))}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-          >
-            {[2, 3, 4, 5, 6].map((n) => (
-              <option key={n} value={n}>
-                {n} payments
-              </option>
-            ))}
-          </select>
-          {totalAmount && parseFloat(totalAmount) > 0 && (
-            <p className="mt-1 text-xs text-gray-500">
-              About ${(parseFloat(totalAmount) / installments).toFixed(2)} per
-              payment
-            </p>
-          )}
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Note (optional)
-          </label>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={3}
-            placeholder="Anything the academy should know"
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-          />
-        </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button
-          type="button"
-          onClick={submit}
-          disabled={loading}
-          className="w-full py-3 bg-primary hover:bg-[#c9281e] text-white rounded-md font-medium transition-colors disabled:opacity-60"
-        >
-          {loading ? "Sending..." : "Send request"}
-        </button>
-      </div>
-    </ModalShell>
-  );
-};
-
-/* ----------------------------- Player card ----------------------------- */
-
 const StatusBadge = ({ player }: { player: PortalPlayer }) => {
   if (player.overdue) {
     const overdueDays =
@@ -521,7 +398,7 @@ const PaymentsSection = ({ player }: { player: PortalPlayer }) => {
   if (player.payments.length === 0) {
     return (
       <div className="mt-5 pt-4 border-t border-gray-100">
-        <h4 className="text-sm font-bold text-gray-900">Payments</h4>
+        <h4 className="text-sm font-bold text-gray-900">Payments &amp; Receipts</h4>
         <p className="mt-2 text-sm text-gray-500">No payments recorded yet.</p>
       </div>
     );
@@ -537,7 +414,7 @@ const PaymentsSection = ({ player }: { player: PortalPlayer }) => {
   return (
     <div className="mt-5 pt-4 border-t border-gray-100">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h4 className="text-sm font-bold text-gray-900">Payments</h4>
+        <h4 className="text-sm font-bold text-gray-900">Payments &amp; Receipts</h4>
         <div className="flex items-center gap-2">
           <select
             value={year ?? ""}
@@ -599,7 +476,9 @@ const PaymentsSection = ({ player }: { player: PortalPlayer }) => {
             {visible.length === 0 && (
               <tr>
                 <td colSpan={6} className="py-3 text-gray-500">
-                  No payments in {year}.
+                  {player.payments.length === 0
+                    ? "No payments recorded yet — your receipts and yearly statement will appear here after your first payment."
+                    : `No payments in ${year}.`}
                 </td>
               </tr>
             )}
@@ -621,7 +500,7 @@ const PlayerCard = ({
   onRefresh: () => void;
   onAuthError: () => void;
 }) => {
-  const [modal, setModal] = useState<"hold" | "installment" | null>(null);
+  const [modal, setModal] = useState<"hold" | null>(null);
   const [successNote, setSuccessNote] = useState("");
 
   const renewalTone = player.overdue
@@ -679,16 +558,6 @@ const PlayerCard = ({
         >
           Request a hold
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            setSuccessNote("");
-            setModal("installment");
-          }}
-          className="px-4 py-2 text-sm font-medium border border-gray-300 text-gray-700 rounded-md hover:border-primary hover:text-primary transition-colors"
-        >
-          Request installment plan
-        </button>
       </div>
 
       {successNote && (
@@ -705,7 +574,7 @@ const PlayerCard = ({
                 className="flex flex-wrap items-center gap-2 text-sm text-gray-600"
               >
                 <span className="font-medium text-gray-800">
-                  {r.kind === "hold" ? "Hold request" : "Installment plan"}
+                  {r.kind === "hold" ? "Hold request" : "Request"}
                 </span>
                 <RequestStatusChip status={r.status} />
                 <span className="text-xs text-gray-400">
@@ -714,12 +583,6 @@ const PlayerCard = ({
                 {r.kind === "hold" && r.resumeAt && (
                   <span className="text-xs text-gray-400">
                     · resume {formatDate(r.resumeAt)}
-                  </span>
-                )}
-                {r.kind === "installment" && r.totalAmount != null && (
-                  <span className="text-xs text-gray-400">
-                    · {formatAmount(r.totalAmount)}
-                    {r.installments ? ` in ${r.installments} payments` : ""}
                   </span>
                 )}
               </li>
@@ -732,19 +595,6 @@ const PlayerCard = ({
 
       {modal === "hold" && (
         <HoldModal
-          player={player}
-          token={token}
-          onClose={() => setModal(null)}
-          onAuthError={onAuthError}
-          onSuccess={() => {
-            setModal(null);
-            setSuccessNote("Sent — the academy will confirm by email.");
-            onRefresh();
-          }}
-        />
-      )}
-      {modal === "installment" && (
-        <InstallmentModal
           player={player}
           token={token}
           onClose={() => setModal(null)}

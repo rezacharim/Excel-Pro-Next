@@ -137,7 +137,31 @@ const Billboard = () => {
             </div>
           )}
         </div>
-        <RezaCard />
+        <div className="md:w-1/4 h-full flex flex-col gap-4 my-6 lg:my-0 md:my-0 sm:my-6">
+          <RezaCard />
+          {players.length > 0 && (
+            <a
+              href="/matchday"
+              className="relative rounded-lg shadow-xl overflow-hidden h-[150px] shrink-0 group block"
+              aria-label={`Player of the month: ${players[0].player_name}`}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={players[0].image_url}
+                alt={`${players[0].player_name} — Excel Pro player of the month`}
+                className="h-full w-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
+              />
+              <div className="absolute top-2 left-2 bg-primary text-white text-[11px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full shadow">
+                Player of the Month
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-3 pb-2 pt-8">
+                <p className="text-white text-sm font-semibold truncate">
+                  {players[0].player_name}
+                </p>
+              </div>
+            </a>
+          )}
+        </div>
       </div>
       {slides.length > 1 && (
         <div className="flex justify-center">

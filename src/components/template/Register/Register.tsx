@@ -12,7 +12,6 @@ const Register = () => {
   const [ready, setReady] = useState<boolean>(false);
   const [portalEmail, setPortalEmail] = useState<string | null>(null);
   const { setEmail, setEmailVerified } = useUserFormStore();
-  const { step, setStep } = useRegisterStepStore();
   const { setIsFirstTime } = useIsFirstRegister();
 
   // A parent who already verified their email (family dashboard session)
@@ -25,9 +24,6 @@ const Register = () => {
       setEmail(email);
       setEmailVerified(true);
       setPortalEmail(email);
-      // Any stale "jump to payment" step from an earlier visit starts the
-      // wizard at step 1 instead of a bare payment screen.
-      if (step < 1 || step > 5) setStep(1);
       // Every player created through the wizard is new, so the one-time
       // registration fee applies regardless of the parent's history.
       setIsFirstTime(true);
@@ -35,6 +31,30 @@ const Register = () => {
     }
     setReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Every fresh visit to /register must start at step 1 of the wizard — never
+  // on a leftover payment step saved from a previous registration. The saved
+  // step is restored from localStorage slightly AFTER first render, so reset
+  // both now and again the moment restoration finishes. After that the store
+  // is left alone (finishing the wizard legitimately moves to payment).
+  useEffect(() => {
+    const resetStaleStep = () => {
+      const s = useRegisterStepStore.getState().step;
+      if (s < 1 || s > 5) useRegisterStepStore.getState().setStep(1);
+    };
+    resetStaleStep();
+    const persistApi = (
+      useRegisterStepStore as unknown as {
+        persist?: {
+          hasHydrated: () => boolean;
+          onFinishHydration: (fn: () => void) => () => void;
+        };
+      }
+    ).persist;
+    if (persistApi && !persistApi.hasHydrated()) {
+      return persistApi.onFinishHydration(resetStaleStep);
+    }
   }, []);
 
   const useDifferentEmail = () => {

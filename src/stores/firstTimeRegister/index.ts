@@ -13,7 +13,10 @@ export const useIsFirstRegister = create<RegisterStepStore>()(
       setIsFirstTime: (value) => set({ isFirstTime: value }),
     }),
     {
-      name: "register-step-storage",
+      // NOTE: this used to share "register-step-storage" with the step store,
+      // so the two stores kept overwriting each other's saved state (one cause
+      // of the wizard jumping straight to the payment page). Own key now.
+      name: "first-time-register-storage",
     }
   )
 );

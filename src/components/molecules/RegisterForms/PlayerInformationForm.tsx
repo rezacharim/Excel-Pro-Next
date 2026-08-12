@@ -362,14 +362,18 @@ const PlayerInformationForm: NextPage = () => {
                   <option value="" disabled hidden>
                     Select T-Shirt Size
                   </option>
-                  <option value={TShirtSize.XS}>{TShirtSize.XS}</option>
-                  <option value={TShirtSize.S}>{TShirtSize.S}</option>
-                  <option value={TShirtSize.M}>{TShirtSize.M}</option>
-                  <option value={TShirtSize.L}>{TShirtSize.L}</option>
-                  <option value={TShirtSize.XL}>{TShirtSize.XL}</option>
-                  <option value={TShirtSize.XXL}>{TShirtSize.XXL}</option>
+                  <option value={TShirtSize.YXXS}>{TShirtSize.YXXS} (Youth XXS)</option>
+                  <option value={TShirtSize.YXS}>{TShirtSize.YXS} (Youth XS)</option>
+                  <option value={TShirtSize.YS}>{TShirtSize.YS} (Youth Small)</option>
                   <option value={TShirtSize.YM}>{TShirtSize.YM} (Youth Medium)</option>
                   <option value={TShirtSize.YL}>{TShirtSize.YL} (Youth Large)</option>
+                  <option value={TShirtSize.YXL}>{TShirtSize.YXL} (Youth XL)</option>
+                  <option value={TShirtSize.XS}>{TShirtSize.XS} (Adult XS)</option>
+                  <option value={TShirtSize.S}>{TShirtSize.S} (Adult Small)</option>
+                  <option value={TShirtSize.M}>{TShirtSize.M} (Adult Medium)</option>
+                  <option value={TShirtSize.L}>{TShirtSize.L} (Adult Large)</option>
+                  <option value={TShirtSize.XL}>{TShirtSize.XL} (Adult XL)</option>
+                  <option value={TShirtSize.XXL}>{TShirtSize.XXL} (Adult XXL)</option>
                 </select>
                 {formik.touched.tShirtSize && formik.errors.tShirtSize && (
                   <div className="text-red-500 text-sm mt-1">
@@ -394,14 +398,18 @@ const PlayerInformationForm: NextPage = () => {
                   <option value="" disabled hidden>
                     Select Short Size
                   </option>
-                  <option value={TShirtSize.XS}>{TShirtSize.XS}</option>
-                  <option value={TShirtSize.S}>{TShirtSize.S}</option>
-                  <option value={TShirtSize.M}>{TShirtSize.M}</option>
-                  <option value={TShirtSize.L}>{TShirtSize.L}</option>
-                  <option value={TShirtSize.XL}>{TShirtSize.XL}</option>
-                  <option value={TShirtSize.XXL}>{TShirtSize.XXL}</option>
+                  <option value={TShirtSize.YXXS}>{TShirtSize.YXXS} (Youth XXS)</option>
+                  <option value={TShirtSize.YXS}>{TShirtSize.YXS} (Youth XS)</option>
+                  <option value={TShirtSize.YS}>{TShirtSize.YS} (Youth Small)</option>
                   <option value={TShirtSize.YM}>{TShirtSize.YM} (Youth Medium)</option>
                   <option value={TShirtSize.YL}>{TShirtSize.YL} (Youth Large)</option>
+                  <option value={TShirtSize.YXL}>{TShirtSize.YXL} (Youth XL)</option>
+                  <option value={TShirtSize.XS}>{TShirtSize.XS} (Adult XS)</option>
+                  <option value={TShirtSize.S}>{TShirtSize.S} (Adult Small)</option>
+                  <option value={TShirtSize.M}>{TShirtSize.M} (Adult Medium)</option>
+                  <option value={TShirtSize.L}>{TShirtSize.L} (Adult Large)</option>
+                  <option value={TShirtSize.XL}>{TShirtSize.XL} (Adult XL)</option>
+                  <option value={TShirtSize.XXL}>{TShirtSize.XXL} (Adult XXL)</option>
                 </select>
                 {formik.touched.shortSize && formik.errors.shortSize && (
                   <div className="text-red-500 text-sm mt-1">
@@ -428,14 +436,18 @@ const PlayerInformationForm: NextPage = () => {
                   <option value="" disabled hidden>
                     Select Jacket Size
                   </option>
-                  <option value={TShirtSize.XS}>{TShirtSize.XS}</option>
-                  <option value={TShirtSize.S}>{TShirtSize.S}</option>
-                  <option value={TShirtSize.M}>{TShirtSize.M}</option>
-                  <option value={TShirtSize.L}>{TShirtSize.L}</option>
-                  <option value={TShirtSize.XL}>{TShirtSize.XL}</option>
-                  <option value={TShirtSize.XXL}>{TShirtSize.XXL}</option>
+                  <option value={TShirtSize.YXXS}>{TShirtSize.YXXS} (Youth XXS)</option>
+                  <option value={TShirtSize.YXS}>{TShirtSize.YXS} (Youth XS)</option>
+                  <option value={TShirtSize.YS}>{TShirtSize.YS} (Youth Small)</option>
                   <option value={TShirtSize.YM}>{TShirtSize.YM} (Youth Medium)</option>
                   <option value={TShirtSize.YL}>{TShirtSize.YL} (Youth Large)</option>
+                  <option value={TShirtSize.YXL}>{TShirtSize.YXL} (Youth XL)</option>
+                  <option value={TShirtSize.XS}>{TShirtSize.XS} (Adult XS)</option>
+                  <option value={TShirtSize.S}>{TShirtSize.S} (Adult Small)</option>
+                  <option value={TShirtSize.M}>{TShirtSize.M} (Adult Medium)</option>
+                  <option value={TShirtSize.L}>{TShirtSize.L} (Adult Large)</option>
+                  <option value={TShirtSize.XL}>{TShirtSize.XL} (Adult XL)</option>
+                  <option value={TShirtSize.XXL}>{TShirtSize.XXL} (Adult XXL)</option>
                 </select>
                 {formik.touched.jacketSize && formik.errors.jacketSize && (
                   <div className="text-red-500 text-sm mt-1">
@@ -460,14 +472,18 @@ const PlayerInformationForm: NextPage = () => {
                   <option value="" disabled hidden>
                     Select Pants Size
                   </option>
-                  <option value={TShirtSize.XS}>{TShirtSize.XS}</option>
-                  <option value={TShirtSize.S}>{TShirtSize.S}</option>
-                  <option value={TShirtSize.M}>{TShirtSize.M}</option>
-                  <option value={TShirtSize.L}>{TShirtSize.L}</option>
-                  <option value={TShirtSize.XL}>{TShirtSize.XL}</option>
-                  <option value={TShirtSize.XXL}>{TShirtSize.XXL}</option>
+                  <option value={TShirtSize.YXXS}>{TShirtSize.YXXS} (Youth XXS)</option>
+                  <option value={TShirtSize.YXS}>{TShirtSize.YXS} (Youth XS)</option>
+                  <option value={TShirtSize.YS}>{TShirtSize.YS} (Youth Small)</option>
                   <option value={TShirtSize.YM}>{TShirtSize.YM} (Youth Medium)</option>
                   <option value={TShirtSize.YL}>{TShirtSize.YL} (Youth Large)</option>
+                  <option value={TShirtSize.YXL}>{TShirtSize.YXL} (Youth XL)</option>
+                  <option value={TShirtSize.XS}>{TShirtSize.XS} (Adult XS)</option>
+                  <option value={TShirtSize.S}>{TShirtSize.S} (Adult Small)</option>
+                  <option value={TShirtSize.M}>{TShirtSize.M} (Adult Medium)</option>
+                  <option value={TShirtSize.L}>{TShirtSize.L} (Adult Large)</option>
+                  <option value={TShirtSize.XL}>{TShirtSize.XL} (Adult XL)</option>
+                  <option value={TShirtSize.XXL}>{TShirtSize.XXL} (Adult XXL)</option>
                 </select>
                 {formik.touched.pantsSize && formik.errors.pantsSize && (
                   <div className="text-red-500 text-sm mt-1">

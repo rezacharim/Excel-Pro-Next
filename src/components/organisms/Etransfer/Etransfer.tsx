@@ -5,6 +5,7 @@ import useUserFormStore from "../../../stores/UserFormStore";
 import { useDivisionStore } from "@/stores/divisionStore";
 import { useIsFirstRegister } from "@/stores/firstTimeRegister";
 import { Button } from "@/components/atoms/Button/Button";
+import BankLinks from "@/components/molecules/BankLinks/BankLinks";
 
 export type SubscriptionPlan =
   | "free"
@@ -260,7 +261,9 @@ const Etransfer = () => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            userId: userId,
+            // The id can come from localStorage as text — the API requires a
+            // real number or it rejects with "userId must be a number".
+            userId: Number(userId),
             plan: selectedPlan,
             amount: Number(finalPrice),
             isFirstTime: isFirstTime,
@@ -372,6 +375,12 @@ const Etransfer = () => {
                 ? `It appears this is your first time registering. ($${firstTimeRegistrationFee} first-time registration fee added)`
                 : "Welcome back! You've registered with us before."}
             </p>
+            <p className="mt-3 text-sm">
+              You&apos;ll send an Interac e-transfer to:{" "}
+              <span className="font-bold text-gray-900 break-all">
+                {bankEmails[0].email}
+              </span>
+            </p>
             <p className="text-sm text-red-600 mt-2">
               ⚠️ Please make sure to include the{" "}
               <strong>player&apos;s full name</strong> and{" "}
@@ -421,6 +430,7 @@ const Etransfer = () => {
             <p className="font-bold mt-4">
               Amount to pay: ${serverAmount || finalPrice}
             </p>
+            <BankLinks />
           </div>
 
           <p className="mb-4">

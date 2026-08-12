@@ -16,6 +16,8 @@ import {
   requestHold,
 } from "@/services/portal";
 
+import BankLinks from "@/components/molecules/BankLinks/BankLinks";
+
 const PAY_TO_EMAIL = "Excelpro.Etransfer@gmail.com";
 
 const TOKEN_KEY = "portal_token";
@@ -355,6 +357,7 @@ const RenewModal = ({
               <span className="font-medium">{player.fullname}</span>) in the
               e-transfer message so we can match your payment.
             </p>
+            <BankLinks />
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}

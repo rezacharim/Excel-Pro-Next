@@ -17,6 +17,7 @@ import {
   RotateCcw,
   Search,
   Upload,
+  Users,
   Wallet,
   X,
   XCircle,
@@ -40,7 +41,33 @@ type ModalType =
   | "resume"
   | "extend"
   | "stop"
-  | "reactivate";
+  | "reactivate"
+  | "set-plan";
+
+/** The four real programs a player can belong to. */
+export const PLAN_OPTIONS = [
+  { value: "U5_U8", label: "U5–U8" },
+  { value: "U9_U12", label: "U9–U12" },
+  { value: "U13_U14", label: "U13–U14" },
+  { value: "U15_U18", label: "U15–U18" },
+] as const;
+
+/**
+ * Friendly name for a stored plan value. Players who signed up without
+ * choosing a program first were saved with a placeholder ("free"/"freePlane"),
+ * which should read as "Not set" so it's obvious it needs fixing.
+ */
+const planLabel = (plan?: string | null): string => {
+  if (!plan) return "Not set";
+  const match = PLAN_OPTIONS.find((p) => p.value === plan);
+  if (match) return match.label;
+  const normalized = plan.toLowerCase();
+  if (normalized.includes("free") || normalized === "none") return "Not set";
+  return plan;
+};
+
+const isPlanSet = (plan?: string | null): boolean =>
+  planLabel(plan) !== "Not set";
 
 interface ModalState {
   type: ModalType;
@@ -109,6 +136,15 @@ const Memberships: NextPage = () => {
   const [holdNote, setHoldNote] = useState("");
   const [extendDays, setExtendDays] = useState("30");
   const [extendNote, setExtendNote] = useState("");
+  const [selectedPlan, setSelectedPlan] = useState<string>("U9_U12");
+
+  // Where to draw the open row menu. Positioned in fixed coordinates so it is
+  // never clipped by the table's scroll container (it used to be cut off for
+  // the last rows, making the actions unreachable).
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(
+    null
+  );
+  const menuAnchorRef = useRef<HTMLElement | null>(null);
 
   const savedToken = Cookies.get("auth_token");
 
@@ -199,6 +235,7 @@ const Memberships: NextPage = () => {
 
   const openModal = (type: ModalType, row: MembershipRow) => {
     setOpenMenuId(null);
+    setMenuPos(null);
     // Reset form state per modal
     setPaymentAmount("380");
     setPaymentMethod("etransfer");
@@ -207,12 +244,78 @@ const Memberships: NextPage = () => {
     setHoldNote("");
     setExtendDays("30");
     setExtendNote("");
+    setSelectedPlan(
+      PLAN_OPTIONS.some((p) => p.value === row.activePlan)
+        ? row.activePlan
+        : "U9_U12"
+    );
     setModal({ type, row });
   };
 
+  /** Work out where the menu should sit, given its trigger button. */
+  const positionFor = (button: HTMLElement) => {
+    const rect = button.getBoundingClientRect();
+    const MENU_HEIGHT = 240;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUpwards = spaceBelow < MENU_HEIGHT && rect.top > spaceBelow;
+    const top = openUpwards
+      ? Math.max(8, rect.top - MENU_HEIGHT - 4)
+      : Math.min(rect.bottom + 4, window.innerHeight - MENU_HEIGHT - 8);
+    return {
+      top: Math.max(8, top),
+      right: Math.max(8, window.innerWidth - rect.right),
+    };
+  };
+
+  /** Open the row menu anchored to its button, in viewport coordinates. */
+  const toggleRowMenu = (
+    rowId: number,
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    if (openMenuId === rowId) {
+      setOpenMenuId(null);
+      setMenuPos(null);
+      return;
+    }
+    menuAnchorRef.current = event.currentTarget;
+    setMenuPos(positionFor(event.currentTarget));
+    setOpenMenuId(rowId);
+  };
+
+  const closeRowMenu = useCallback(() => {
+    setOpenMenuId(null);
+    setMenuPos(null);
+    menuAnchorRef.current = null;
+  }, []);
+
+  // Keep the menu glued to its row while the page scrolls or resizes, and
+  // close it only once the row itself has scrolled out of sight.
+  useEffect(() => {
+    if (openMenuId === null) return;
+    const reposition = () => {
+      const anchor = menuAnchorRef.current;
+      if (!anchor || !anchor.isConnected) {
+        closeRowMenu();
+        return;
+      }
+      const rect = anchor.getBoundingClientRect();
+      if (rect.bottom < 0 || rect.top > window.innerHeight) {
+        closeRowMenu();
+        return;
+      }
+      setMenuPos(positionFor(anchor));
+    };
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+    return () => {
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+    };
+  }, [openMenuId, closeRowMenu]);
+
   const postAction = async (
     path: string,
-    body?: RecordPaymentDto | HoldDto | ExtendDto
+    body?: RecordPaymentDto | HoldDto | ExtendDto | { plan: string }
   ): Promise<void> => {
     const response = await fetch(`${API_URL}/membership/${path}`, {
       method: "POST",
@@ -239,7 +342,7 @@ const Memberships: NextPage = () => {
   const runAction = async (
     path: string,
     successMessage: string,
-    body?: RecordPaymentDto | HoldDto | ExtendDto
+    body?: RecordPaymentDto | HoldDto | ExtendDto | { plan: string }
   ) => {
     try {
       setIsSubmitting(true);
@@ -327,6 +430,13 @@ const Memberships: NextPage = () => {
         await runAction(
           `${row.id}/reactivate`,
           `Membership reactivated for ${row.fullname}`
+        );
+        break;
+      case "set-plan":
+        await runAction(
+          `${row.id}/set-plan`,
+          `${row.fullname} moved to ${planLabel(selectedPlan)}`,
+          { plan: selectedPlan }
         );
         break;
     }
@@ -532,6 +642,8 @@ const Memberships: NextPage = () => {
   ];
 
   const modalRow = modal?.row;
+  const menuRow =
+    openMenuId === null ? null : rows.find((r) => r.id === openMenuId) ?? null;
 
   return (
     <div className="p-4 md:p-6 bg-white min-h-screen rounded-lg">
@@ -727,9 +839,19 @@ const Memberships: NextPage = () => {
                           </div>
                         </td>
                         <td className="py-4 px-6 whitespace-nowrap">
-                          <span className="px-2 py-1 md:px-3 rounded-full text-xs md:text-sm bg-blue-100 text-blue-800">
-                            {row.activePlan || "—"}
-                          </span>
+                          {isPlanSet(row.activePlan) ? (
+                            <span className="px-2 py-1 md:px-3 rounded-full text-xs md:text-sm bg-blue-100 text-blue-800">
+                              {planLabel(row.activePlan)}
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => openModal("set-plan", row)}
+                              title="This player has no program yet — click to set one"
+                              className="px-2 py-1 md:px-3 rounded-full text-xs md:text-sm bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors"
+                            >
+                              Not set — choose
+                            </button>
+                          )}
                         </td>
                         <td className="py-4 px-6 whitespace-nowrap">
                           {renderStatusBadge(row)}
@@ -746,101 +868,17 @@ const Memberships: NextPage = () => {
                           {row.subscriptionCounter}
                         </td>
                         <td className="py-4 px-6 whitespace-nowrap text-right">
-                          <div className="relative inline-block text-left">
-                            <button
-                              onClick={() =>
-                                setOpenMenuId(
-                                  openMenuId === row.id ? null : row.id
-                                )
-                              }
-                              className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
-                              aria-label="Row actions"
-                            >
-                              <MoreVertical size={18} />
-                            </button>
-                            {openMenuId === row.id && (
-                              <>
-                                <div
-                                  className="fixed inset-0 z-10"
-                                  onClick={() => setOpenMenuId(null)}
-                                />
-                                <div className="absolute right-0 mt-1 w-52 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 text-left">
-                                  {row.membershipStatus !== "stopped" && (
-                                    <button
-                                      onClick={() =>
-                                        openModal("record-payment", row)
-                                      }
-                                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                    >
-                                      <Wallet
-                                        size={16}
-                                        className="text-[#E43125]"
-                                      />
-                                      Record payment
-                                    </button>
-                                  )}
-                                  {row.membershipStatus === "active" && (
-                                    <button
-                                      onClick={() => openModal("hold", row)}
-                                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                    >
-                                      <PauseCircle
-                                        size={16}
-                                        className="text-amber-500"
-                                      />
-                                      Hold
-                                    </button>
-                                  )}
-                                  {row.membershipStatus === "on_hold" && (
-                                    <button
-                                      onClick={() => openModal("resume", row)}
-                                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                    >
-                                      <PlayCircle
-                                        size={16}
-                                        className="text-green-600"
-                                      />
-                                      Resume
-                                    </button>
-                                  )}
-                                  {row.membershipStatus !== "stopped" && (
-                                    <button
-                                      onClick={() => openModal("extend", row)}
-                                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                    >
-                                      <CalendarPlus
-                                        size={16}
-                                        className="text-blue-500"
-                                      />
-                                      Extend
-                                    </button>
-                                  )}
-                                  {row.membershipStatus !== "stopped" ? (
-                                    <button
-                                      onClick={() => openModal("stop", row)}
-                                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 border-t border-gray-100"
-                                    >
-                                      <Ban size={16} />
-                                      Stop
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={() =>
-                                        openModal("reactivate", row)
-                                      }
-                                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                    >
-                                      <RotateCcw
-                                        size={16}
-                                        className="text-green-600"
-                                      />
-                                      Reactivate
-                                    </button>
-                                  )}
-                                </div>
-                              </>
-                            )}
-                          </div>
+                          <button
+                            onClick={(e) => toggleRowMenu(row.id, e)}
+                            className={`p-2 rounded-lg text-gray-500 hover:bg-gray-100 ${
+                              openMenuId === row.id ? "bg-gray-100" : ""
+                            }`}
+                            aria-label={`Actions for ${row.fullname}`}
+                            aria-haspopup="menu"
+                            aria-expanded={openMenuId === row.id}
+                          >
+                            <MoreVertical size={18} />
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -862,6 +900,81 @@ const Memberships: NextPage = () => {
           </>
         )}
       </div>
+
+      {/* Row actions menu — rendered outside the table so it can never be
+          clipped by the table's scroll area (previously the actions for the
+          last rows were cut off and unclickable). */}
+      {openMenuId !== null && menuPos && menuRow && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={closeRowMenu} />
+          <div
+            role="menu"
+            style={{ top: menuPos.top, right: menuPos.right }}
+            className="fixed w-52 max-h-[80vh] overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl z-50 py-1 text-left"
+          >
+            {menuRow.membershipStatus !== "stopped" && (
+              <button
+                onClick={() => openModal("record-payment", menuRow)}
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                <Wallet size={16} className="text-[#E43125]" />
+                Record payment
+              </button>
+            )}
+            <button
+              onClick={() => openModal("set-plan", menuRow)}
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <Users size={16} className="text-indigo-500" />
+              Change program
+            </button>
+            {menuRow.membershipStatus === "active" && (
+              <button
+                onClick={() => openModal("hold", menuRow)}
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                <PauseCircle size={16} className="text-amber-500" />
+                Hold
+              </button>
+            )}
+            {menuRow.membershipStatus === "on_hold" && (
+              <button
+                onClick={() => openModal("resume", menuRow)}
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                <PlayCircle size={16} className="text-green-600" />
+                Resume
+              </button>
+            )}
+            {menuRow.membershipStatus !== "stopped" && (
+              <button
+                onClick={() => openModal("extend", menuRow)}
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                <CalendarPlus size={16} className="text-blue-500" />
+                Extend
+              </button>
+            )}
+            {menuRow.membershipStatus !== "stopped" ? (
+              <button
+                onClick={() => openModal("stop", menuRow)}
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 border-t border-gray-100"
+              >
+                <Ban size={16} />
+                Stop
+              </button>
+            ) : (
+              <button
+                onClick={() => openModal("reactivate", menuRow)}
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                <RotateCcw size={16} className="text-green-600" />
+                Reactivate
+              </button>
+            )}
+          </div>
+        </>
+      )}
 
       {/* Modals */}
       {modal && modalRow && (
@@ -1049,6 +1162,41 @@ const Memberships: NextPage = () => {
               </>
             )}
 
+            {modal.type === "set-plan" && (
+              <>
+                <h2 className="text-lg font-bold mb-2">Change program</h2>
+                <p className="text-gray-600 text-sm mb-4">
+                  Choose the program for{" "}
+                  <span className="font-medium">{modalRow.fullname}</span>.
+                  Current: {planLabel(modalRow.activePlan)}
+                </p>
+                <div className="space-y-2">
+                  {PLAN_OPTIONS.map((option) => (
+                    <label
+                      key={option.value}
+                      className={`flex items-center gap-3 px-4 py-3 border rounded-lg cursor-pointer text-sm ${
+                        selectedPlan === option.value
+                          ? "border-[#E43125] bg-red-50"
+                          : "border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="program"
+                        value={option.value}
+                        checked={selectedPlan === option.value}
+                        onChange={() => setSelectedPlan(option.value)}
+                        className="accent-[#E43125]"
+                      />
+                      <span className="font-medium text-gray-800">
+                        {option.label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+
             <div className="mt-6 flex justify-end gap-2">
               <button
                 onClick={closeModal}
@@ -1073,6 +1221,8 @@ const Memberships: NextPage = () => {
                   ? "Resume"
                   : modal.type === "stop"
                   ? "Stop membership"
+                  : modal.type === "set-plan"
+                  ? "Save program"
                   : "Reactivate"}
               </button>
             </div>

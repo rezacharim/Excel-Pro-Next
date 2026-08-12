@@ -11,6 +11,26 @@ const validationSchema = Yup.object({
   policy: Yup.boolean().oneOf([true], "You must agree to the policy"),
 });
 
+/**
+ * Work out the program from the player's date of birth, the way soccer age
+ * groups work in Canada (age = current year - birth year).
+ *
+ * This is the safety net for parents who register straight from the menu
+ * instead of from a program page: without it those players used to be saved
+ * with a placeholder plan and showed up as "Not set" in the admin dashboard.
+ */
+export const planFromDateOfBirth = (dateOfBirth?: string): string | null => {
+  if (!dateOfBirth) return null;
+  const dob = new Date(dateOfBirth);
+  if (isNaN(dob.getTime())) return null;
+  const age = new Date().getFullYear() - dob.getFullYear();
+  if (age < 4 || age > 25) return null; // clearly wrong date — let admin decide
+  if (age <= 8) return "U5_U8";
+  if (age <= 12) return "U9_U12";
+  if (age <= 14) return "U13_U14";
+  return "U15_U18";
+};
+
 // Helper function to normalize division format
 const normalizeDivision = (str: string): string => {
   try {
@@ -68,6 +88,21 @@ const normalizeDivision = (str: string): string => {
   }
 };
 
+/**
+ * Final program for a registration: whatever program page they came from,
+ * otherwise their age group from the date of birth, otherwise a placeholder
+ * the admin can correct in Dashboard → Memberships → Change program.
+ */
+const resolvePlan = (division?: string | null, dateOfBirth?: string): string => {
+  if (division) {
+    const fromDivision = normalizeDivision(division);
+    if (["U5_U8", "U9_U12", "U13_U14", "U15_U18"].includes(fromDivision)) {
+      return fromDivision;
+    }
+  }
+  return planFromDateOfBirth(dateOfBirth) ?? "freePlane";
+};
+
 const Acknowledgment: NextPage = () => {
   const { setStep, step } = useRegisterStepStore();
   const { division } = useDivisionStore();
@@ -115,7 +150,7 @@ const Acknowledgment: NextPage = () => {
           phone_number: userFormData.phone_number,
           email: userFormData.email || "",
           player_positions: userFormData.player_positions || "",
-          activePlan: normalizeDivision(division!),
+          activePlan: resolvePlan(division, userFormData.dateOfBirth),
           policy: true,
           custom_position: userFormData.custom_position || "",
           photoUrl: photoUrl,

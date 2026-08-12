@@ -13,6 +13,10 @@ import PlayerMonthGallery from "@/components/organisms/Dashboard/PlayerMonthGall
 import Setting from "@/components/organisms/Dashboard/Setting/Setting";
 import Memberships from "@/components/organisms/Dashboard/Memberships/Memberships";
 import Announcements from "@/components/organisms/Dashboard/Announcements/Announcements";
+import Finance from "@/components/organisms/Dashboard/Finance/Finance";
+import Collections from "@/components/organisms/Dashboard/Collections/Collections";
+import Admins from "@/components/organisms/Dashboard/Admins/Admins";
+import Activity from "@/components/organisms/Dashboard/Activity/Activity";
 
 const Dashboard = () => {
   const { activeMenuId } = useMenuStore();
@@ -45,6 +49,14 @@ const Dashboard = () => {
         <Memberships />
       ) : activeMenuId === 9 ? (
         <Announcements />
+      ) : activeMenuId === 10 ? (
+        <Collections />
+      ) : activeMenuId === 11 ? (
+        <Finance />
+      ) : activeMenuId === 12 ? (
+        <Admins />
+      ) : activeMenuId === 13 ? (
+        <Activity />
       ) : (
         ""
       )}

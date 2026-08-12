@@ -8,14 +8,21 @@ import {
   Ban,
   CalendarPlus,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Download,
   Loader2,
+  Mail,
   MoreVertical,
   PauseCircle,
+  Phone,
   PlayCircle,
   RefreshCw,
   RotateCcw,
   Search,
+  Send,
+  ShieldAlert,
+  ShieldCheck,
   Upload,
   Users,
   Wallet,
@@ -23,13 +30,24 @@ import {
   XCircle,
 } from "lucide-react";
 import {
+  ATTENDANCE_STATUSES,
+  AttendanceFilter,
+  AttendanceStatus,
+  ContactLogEntry,
   ExtendDto,
-  HoldDto,
   ImportResult,
+  HoldDto,
   MembershipRow,
   PaymentMethod,
+  ProgramFilter,
   RecordPaymentDto,
+  SendReminderResult,
+  SortDirection,
+  SortKey,
   StatusFilter,
+  SuspendDto,
+  SuspensionReason,
+  UpdateNotesDto,
 } from "./types";
 import { rowsToPlayers } from "./importPlayers";
 
@@ -42,7 +60,9 @@ type ModalType =
   | "extend"
   | "stop"
   | "reactivate"
-  | "set-plan";
+  | "set-plan"
+  | "suspend"
+  | "unsuspend";
 
 /** The four real programs a player can belong to. */
 export const PLAN_OPTIONS = [
@@ -69,6 +89,162 @@ const planLabel = (plan?: string | null): string => {
 const isPlanSet = (plan?: string | null): boolean =>
   planLabel(plan) !== "Not set";
 
+const SUSPENSION_REASON_OPTIONS: {
+  value: SuspensionReason;
+  label: string;
+  hint: string;
+}[] = [
+  {
+    value: "late_payment",
+    label: "Late payment",
+    hint: "Fees are overdue and the family has not arranged anything.",
+  },
+  {
+    value: "discipline",
+    label: "Discipline",
+    hint: "Behaviour on or off the pitch.",
+  },
+  {
+    value: "paperwork",
+    label: "Paperwork",
+    hint: "Missing registration, waiver or medical form.",
+  },
+  {
+    value: "medical",
+    label: "Medical",
+    hint: "Injury or health reason keeping the player out.",
+  },
+  { value: "other", label: "Other", hint: "Anything else — explain in the note." },
+];
+
+const suspensionReasonLabel = (reason?: string | null): string => {
+  if (!reason) return "No reason given";
+  const match = SUSPENSION_REASON_OPTIONS.find((r) => r.value === reason);
+  return match ? match.label : "Other";
+};
+
+/**
+ * Payment and paperwork suspensions are administrative, so the parent should
+ * hear immediately. Discipline and medical ones are sensitive — the academy
+ * phones first, so the email stays off unless the admin ticks it.
+ */
+const DEFAULT_NOTIFY_PARENT: Record<SuspensionReason, boolean> = {
+  late_payment: true,
+  paperwork: true,
+  discipline: false,
+  medical: false,
+  other: false,
+};
+
+const ATTENDANCE_OPTIONS: {
+  value: AttendanceStatus;
+  label: string;
+  dotClass: string;
+  title: string;
+}[] = [
+  {
+    value: "attending",
+    label: "Attending",
+    dotClass: "bg-green-500",
+    title: "Attending regularly",
+  },
+  {
+    value: "irregular",
+    label: "Irregular",
+    dotClass: "bg-amber-500",
+    title: "Attending irregularly",
+  },
+  {
+    value: "not_attending",
+    label: "Not attending",
+    dotClass: "bg-gray-400",
+    title: "Not attending",
+  },
+];
+
+const isAttendanceStatus = (value: string): value is AttendanceStatus =>
+  (ATTENDANCE_STATUSES as readonly string[]).includes(value);
+
+/** The API may send an empty or unknown value; treat those as "attending". */
+const attendanceOf = (row: MembershipRow): AttendanceStatus =>
+  isAttendanceStatus(row.attendanceStatus ?? "")
+    ? (row.attendanceStatus as AttendanceStatus)
+    : "attending";
+
+const PROGRAM_FILTER_OPTIONS: { value: ProgramFilter; label: string }[] = [
+  { value: "all", label: "All programs" },
+  ...PLAN_OPTIONS.map((plan) => ({
+    value: plan.value as ProgramFilter,
+    label: plan.label,
+  })),
+  { value: "not_set", label: "Not set" },
+];
+
+const ATTENDANCE_FILTER_OPTIONS: { value: AttendanceFilter; label: string }[] = [
+  { value: "all", label: "All attendance" },
+  ...ATTENDANCE_OPTIONS.map((option) => ({
+    value: option.value as AttendanceFilter,
+    label: option.label,
+  })),
+];
+
+const SESSION_EXPIRED = "Your session expired — please sign in again.";
+
+const toNumber = (value: unknown): number => {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return isFinite(parsed) ? parsed : 0;
+};
+
+/**
+ * Readable name for a contact-log method. The backend also writes
+ * "reminder_email" rows by itself when a reminder goes out.
+ */
+const contactMethodLabel = (method?: string | null): string => {
+  switch (method) {
+    case "call":
+      return "Call";
+    case "email":
+      return "Email";
+    case "text":
+      return "Text";
+    case "in_person":
+      return "In person";
+    case "reminder_email":
+      return "Reminder email";
+    default:
+      return method || "Contact";
+  }
+};
+
+/** Pull the server's own wording out of a failed response where possible. */
+const readErrorMessage = async (
+  response: Response,
+  fallback: string
+): Promise<string> => {
+  if (response.status === 401) return SESSION_EXPIRED;
+  try {
+    const data = await response.json();
+    const message = data?.message;
+    if (Array.isArray(message)) return message.join(", ");
+    if (typeof message === "string" && message.trim()) return message;
+  } catch {
+    // keep the fallback wording
+  }
+  return fallback;
+};
+
+const MODAL_SUBMIT_LABEL: Record<ModalType, string> = {
+  "record-payment": "Record payment",
+  hold: "Put on hold",
+  resume: "Resume",
+  extend: "Extend",
+  stop: "Stop membership",
+  reactivate: "Reactivate",
+  "set-plan": "Save program",
+  suspend: "Suspend account",
+  unsuspend: "Lift suspension",
+};
+
 interface ModalState {
   type: ModalType;
   row: MembershipRow;
@@ -84,6 +260,7 @@ const STATUS_TABS: { key: StatusFilter; label: string }[] = [
   { key: "active", label: "Active" },
   { key: "on_hold", label: "On hold" },
   { key: "overdue", label: "Overdue" },
+  { key: "suspended", label: "Suspended" },
   { key: "stopped", label: "Stopped" },
 ];
 
@@ -96,6 +273,58 @@ const formatDate = (iso: string | null): string => {
     month: "short",
     day: "numeric",
   });
+};
+
+/** Compact form ("Aug 10") for inline mentions inside a sentence. */
+const formatShortDate = (iso: string | null): string => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+};
+
+/** Whole years old, or null when the date of birth is missing or nonsense. */
+const calculateAge = (iso: string | null): number | null => {
+  if (!iso) return null;
+  const dob = new Date(iso);
+  if (isNaN(dob.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+    age -= 1;
+  }
+  if (age < 0 || age > 120) return null;
+  return age;
+};
+
+/** A suspended player is not "active", whatever their renewal date says. */
+const isSuspended = (row: MembershipRow): boolean =>
+  row.membershipStatus === "suspended";
+
+/** Overdue is a payment state; suspended accounts are counted on their own. */
+const isCountedOverdue = (row: MembershipRow): boolean =>
+  row.overdue && !isSuspended(row);
+
+/** Most urgent first, so ascending status order reads as a worklist. */
+const statusRank = (row: MembershipRow): number => {
+  if (isCountedOverdue(row)) return 0;
+  if (isSuspended(row)) return 1;
+  if (row.membershipStatus === "on_hold") return 2;
+  if (row.membershipStatus === "active") return 3;
+  return 4;
+};
+
+const planRank = (plan: string | null): number => {
+  const index = PLAN_OPTIONS.findIndex((option) => option.value === plan);
+  return index === -1 ? PLAN_OPTIONS.length : index;
+};
+
+/** Missing renewal dates always sort last, whichever way the column points. */
+const renewalTime = (iso: string | null): number | null => {
+  if (!iso) return null;
+  const time = new Date(iso).getTime();
+  return isNaN(time) ? null : time;
 };
 
 /** New end date after recording a payment: max(today, current end) + 2 months */
@@ -119,6 +348,11 @@ const Memberships: NextPage = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [programFilter, setProgramFilter] = useState<ProgramFilter>("all");
+  const [attendanceFilter, setAttendanceFilter] =
+    useState<AttendanceFilter>("all");
+  const [sortKey, setSortKey] = useState<SortKey>("default");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [modal, setModal] = useState<ModalState | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -137,6 +371,24 @@ const Memberships: NextPage = () => {
   const [extendDays, setExtendDays] = useState("30");
   const [extendNote, setExtendNote] = useState("");
   const [selectedPlan, setSelectedPlan] = useState<string>("U9_U12");
+  const [suspendReason, setSuspendReason] =
+    useState<SuspensionReason>("late_payment");
+  const [suspendNote, setSuspendNote] = useState("");
+  const [notifyParent, setNotifyParent] = useState(
+    DEFAULT_NOTIFY_PARENT.late_payment
+  );
+
+  // Player detail drawer. Held by id, not by value, so the panel shows the
+  // freshly fetched row after any change instead of a stale snapshot.
+  const [detailId, setDetailId] = useState<number | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [attendanceDraft, setAttendanceDraft] =
+    useState<AttendanceStatus>("attending");
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [isSendingReminder, setIsSendingReminder] = useState(false);
+  const [contactLogs, setContactLogs] = useState<ContactLogEntry[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsError, setLogsError] = useState<string | null>(null);
 
   // Where to draw the open row menu. Positioned in fixed coordinates so it is
   // never clipped by the table's scroll container (it used to be cut off for
@@ -183,16 +435,36 @@ const Memberships: NextPage = () => {
     fetchOverview();
   }, [fetchOverview]);
 
-  // Summary counts
+  // Summary counts. Suspended players are their own bucket, so they are kept
+  // out of "active" and "overdue" — otherwise the same player is counted twice
+  // and the owner cannot trust either number.
   const counts = useMemo(() => {
-    const overdue = rows.filter((r) => r.overdue).length;
+    const overdue = rows.filter(isCountedOverdue).length;
     const active = rows.filter(
       (r) => r.membershipStatus === "active" && !r.overdue
     ).length;
     const onHold = rows.filter((r) => r.membershipStatus === "on_hold").length;
+    const suspended = rows.filter(isSuspended).length;
     const stopped = rows.filter((r) => r.membershipStatus === "stopped").length;
-    return { active, onHold, overdue, stopped };
+    return { active, onHold, overdue, suspended, stopped };
   }, [rows]);
+
+  const countForTab = (key: StatusFilter): number => {
+    switch (key) {
+      case "active":
+        return counts.active;
+      case "on_hold":
+        return counts.onHold;
+      case "overdue":
+        return counts.overdue;
+      case "suspended":
+        return counts.suspended;
+      case "stopped":
+        return counts.stopped;
+      default:
+        return rows.length;
+    }
+  };
 
   const filteredRows = useMemo(() => {
     let result = rows;
@@ -201,17 +473,31 @@ const Memberships: NextPage = () => {
       result = result.filter((r) => {
         switch (statusFilter) {
           case "overdue":
-            return r.overdue;
+            return isCountedOverdue(r);
           case "active":
             return r.membershipStatus === "active" && !r.overdue;
           case "on_hold":
             return r.membershipStatus === "on_hold";
+          case "suspended":
+            return isSuspended(r);
           case "stopped":
             return r.membershipStatus === "stopped";
           default:
             return true;
         }
       });
+    }
+
+    if (programFilter !== "all") {
+      result = result.filter((r) =>
+        programFilter === "not_set"
+          ? !isPlanSet(r.activePlan)
+          : r.activePlan === programFilter
+      );
+    }
+
+    if (attendanceFilter !== "all") {
+      result = result.filter((r) => attendanceOf(r) === attendanceFilter);
     }
 
     const query = searchQuery.trim().toLowerCase();
@@ -225,8 +511,61 @@ const Memberships: NextPage = () => {
       );
     }
 
-    return result;
-  }, [rows, statusFilter, searchQuery]);
+    if (sortKey === "default") return result;
+
+    const factor = sortDirection === "asc" ? 1 : -1;
+    // Sort a copy: `result` can still be the state array when no filter ran.
+    return [...result].sort((a, b) => {
+      switch (sortKey) {
+        case "player":
+          return (
+            factor * (a.fullname || "").localeCompare(b.fullname || "", "en")
+          );
+        case "plan":
+          return factor * (planRank(a.activePlan) - planRank(b.activePlan));
+        case "status":
+          return factor * (statusRank(a) - statusRank(b));
+        case "renewal": {
+          const left = renewalTime(a.currentSubscriptionEndDate);
+          const right = renewalTime(b.currentSubscriptionEndDate);
+          if (left === null && right === null) return 0;
+          if (left === null) return 1;
+          if (right === null) return -1;
+          return factor * (left - right);
+        }
+        case "payments":
+          return (
+            factor *
+            (toNumber(a.subscriptionCounter) - toNumber(b.subscriptionCounter))
+          );
+        default:
+          return 0;
+      }
+    });
+  }, [
+    rows,
+    statusFilter,
+    programFilter,
+    attendanceFilter,
+    searchQuery,
+    sortKey,
+    sortDirection,
+  ]);
+
+  /** asc → desc → back to the server's default ordering. */
+  const toggleSort = (key: Exclude<SortKey, "default">) => {
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDirection("asc");
+      return;
+    }
+    if (sortDirection === "asc") {
+      setSortDirection("desc");
+      return;
+    }
+    setSortKey("default");
+    setSortDirection("asc");
+  };
 
   const closeModal = () => {
     if (isSubmitting) return;
@@ -249,7 +588,16 @@ const Memberships: NextPage = () => {
         ? row.activePlan
         : "U9_U12"
     );
+    setSuspendReason("late_payment");
+    setSuspendNote("");
+    setNotifyParent(DEFAULT_NOTIFY_PARENT.late_payment);
     setModal({ type, row });
+  };
+
+  /** Picking a reason re-applies that reason's notification default. */
+  const chooseSuspendReason = (reason: SuspensionReason) => {
+    setSuspendReason(reason);
+    setNotifyParent(DEFAULT_NOTIFY_PARENT[reason]);
   };
 
   /** Work out where the menu should sit, given its trigger button. */
@@ -315,7 +663,7 @@ const Memberships: NextPage = () => {
 
   const postAction = async (
     path: string,
-    body?: RecordPaymentDto | HoldDto | ExtendDto | { plan: string }
+    body?: RecordPaymentDto | HoldDto | ExtendDto | { plan: string } | SuspendDto
   ): Promise<void> => {
     const response = await fetch(`${API_URL}/membership/${path}`, {
       method: "POST",
@@ -342,7 +690,7 @@ const Memberships: NextPage = () => {
   const runAction = async (
     path: string,
     successMessage: string,
-    body?: RecordPaymentDto | HoldDto | ExtendDto | { plan: string }
+    body?: RecordPaymentDto | HoldDto | ExtendDto | { plan: string } | SuspendDto
   ) => {
     try {
       setIsSubmitting(true);
@@ -437,6 +785,27 @@ const Memberships: NextPage = () => {
           `${row.id}/set-plan`,
           `${row.fullname} moved to ${planLabel(selectedPlan)}`,
           { plan: selectedPlan }
+        );
+        break;
+      case "suspend": {
+        const body: SuspendDto = {
+          reason: suspendReason,
+          notifyParent,
+          ...(suspendNote.trim() ? { note: suspendNote.trim() } : {}),
+        };
+        await runAction(
+          `${row.id}/suspend`,
+          `${row.fullname || "Player"} suspended — ${suspensionReasonLabel(
+            suspendReason
+          ).toLowerCase()}`,
+          body
+        );
+        break;
+      }
+      case "unsuspend":
+        await runAction(
+          `${row.id}/unsuspend`,
+          `Suspension lifted for ${row.fullname || "player"}`
         );
         break;
     }
@@ -539,7 +908,179 @@ const Memberships: NextPage = () => {
     }
   };
 
+  const fetchContactLog = useCallback(
+    async (userId: number) => {
+      try {
+        setLogsLoading(true);
+        setLogsError(null);
+        const response = await fetch(
+          `${API_URL}/collections/${userId}/contact-log`,
+          {
+            headers: {
+              Authorization: `Bearer ${savedToken}`,
+            },
+          }
+        );
+        if (!response.ok) {
+          throw new Error(
+            await readErrorMessage(
+              response,
+              "Could not load contact history"
+            )
+          );
+        }
+        const data = await response.json();
+        setContactLogs(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("Error fetching contact log:", error);
+        // A missing history must never blank the rest of the panel.
+        setContactLogs([]);
+        setLogsError(
+          error instanceof Error ? error.message : "Could not load contact history"
+        );
+      } finally {
+        setLogsLoading(false);
+      }
+    },
+    [savedToken]
+  );
+
+  const openDetail = (row: MembershipRow) => {
+    closeRowMenu();
+    setDetailId(row.id);
+    setNoteDraft(row.internalNote || "");
+    setAttendanceDraft(attendanceOf(row));
+    setContactLogs([]);
+    setLogsError(null);
+    fetchContactLog(row.id);
+  };
+
+  const closeDetail = useCallback(() => {
+    setDetailId(null);
+    setContactLogs([]);
+    setLogsError(null);
+  }, []);
+
+  // Escape closes the drawer, unless a modal is stacked on top of it.
+  useEffect(() => {
+    if (detailId === null) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !modal) closeDetail();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [detailId, modal, closeDetail]);
+
+  const saveNotes = async (row: MembershipRow) => {
+    try {
+      setIsSavingNotes(true);
+      const body: UpdateNotesDto = {
+        internalNote: noteDraft.trim(),
+        attendanceStatus: attendanceDraft,
+      };
+      const response = await fetch(`${API_URL}/membership/${row.id}/notes`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${savedToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        throw new Error(
+          await readErrorMessage(response, "Could not save the notes.")
+        );
+      }
+      showToast("success", `Notes saved for ${row.fullname || "player"}`);
+      await fetchOverview();
+    } catch (error) {
+      showToast(
+        "error",
+        error instanceof Error ? error.message : "Could not save the notes."
+      );
+    } finally {
+      setIsSavingNotes(false);
+    }
+  };
+
+  const sendPaymentReminder = async (row: MembershipRow) => {
+    try {
+      setIsSendingReminder(true);
+      const response = await fetch(
+        `${API_URL}/collections/${row.id}/send-reminder`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${savedToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      if (!response.ok) {
+        // The backend explains exactly why (e.g. email not configured) — the
+        // owner needs that wording, not a generic failure.
+        throw new Error(
+          await readErrorMessage(response, "Could not send the reminder.")
+        );
+      }
+      const result: SendReminderResult = await response.json();
+      showToast(
+        "success",
+        `Reminder sent to ${result?.sentTo || row.email || "the parent"}`
+      );
+      await Promise.all([fetchOverview(), fetchContactLog(row.id)]);
+    } catch (error) {
+      showToast(
+        "error",
+        error instanceof Error ? error.message : "Could not send the reminder."
+      );
+    } finally {
+      setIsSendingReminder(false);
+    }
+  };
+
+  const renderAttendanceDot = (row: MembershipRow) => {
+    const status = attendanceOf(row);
+    const option =
+      ATTENDANCE_OPTIONS.find((item) => item.value === status) ??
+      ATTENDANCE_OPTIONS[0];
+    return (
+      <span
+        className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${option.dotClass}`}
+        title={`Attendance: ${option.title}`}
+        aria-label={`Attendance: ${option.title}`}
+        role="img"
+      />
+    );
+  };
+
+  /** "2 reminders · last Aug 10", or nothing when none have been sent. */
+  const renderReminderLine = (row: MembershipRow) => {
+    const sent = toNumber(row.remindersSent);
+    if (sent <= 0) return null;
+    const last = formatShortDate(row.lastReminderAt);
+    return (
+      <div className="text-xs text-gray-500">
+        {sent} reminder{sent === 1 ? "" : "s"}
+        {last ? ` · last ${last}` : ""}
+      </div>
+    );
+  };
+
   const renderStatusBadge = (row: MembershipRow) => {
+    // Checked before "overdue": a suspended account is usually behind on fees
+    // too, and the suspension is the fact the staff must act on.
+    if (isSuspended(row)) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-violet-100 text-violet-700">
+          <ShieldAlert size={12} />
+          Suspended
+          <span className="font-normal">
+            · {suspensionReasonLabel(row.suspensionReason)}
+          </span>
+        </span>
+      );
+    }
     if (row.overdue) {
       const daysOverdue =
         row.daysRemaining !== null ? Math.abs(row.daysRemaining) : null;
@@ -634,6 +1175,12 @@ const Memberships: NextPage = () => {
       iconBg: "bg-red-100",
     },
     {
+      label: "Suspended",
+      value: counts.suspended,
+      icon: <ShieldAlert className="w-5 h-5 text-violet-600" />,
+      iconBg: "bg-violet-100",
+    },
+    {
       label: "Stopped",
       value: counts.stopped,
       icon: <Ban className="w-5 h-5 text-gray-500" />,
@@ -644,6 +1191,56 @@ const Memberships: NextPage = () => {
   const modalRow = modal?.row;
   const menuRow =
     openMenuId === null ? null : rows.find((r) => r.id === openMenuId) ?? null;
+  const detailRow =
+    detailId === null ? null : rows.find((r) => r.id === detailId) ?? null;
+  const detailAge = detailRow ? calculateAge(detailRow.dateOfBirth) : null;
+
+  // Newest first, tolerating entries the API sent without a usable date.
+  const sortedContactLogs = useMemo(
+    () =>
+      [...contactLogs].sort((a, b) => {
+        const left = new Date(a.createdAt).getTime();
+        const right = new Date(b.createdAt).getTime();
+        if (isNaN(left) && isNaN(right)) return 0;
+        if (isNaN(left)) return 1;
+        if (isNaN(right)) return -1;
+        return right - left;
+      }),
+    [contactLogs]
+  );
+
+  const renderSortIcon = (key: Exclude<SortKey, "default">) => {
+    if (sortKey !== key) return null;
+    return sortDirection === "asc" ? (
+      <ChevronUp size={14} />
+    ) : (
+      <ChevronDown size={14} />
+    );
+  };
+
+  const sortableHeader = (key: Exclude<SortKey, "default">, label: string) => (
+    <th
+      className="text-left py-4 px-6 font-medium text-gray-600 whitespace-nowrap"
+      aria-sort={
+        sortKey === key
+          ? sortDirection === "asc"
+            ? "ascending"
+            : "descending"
+          : "none"
+      }
+    >
+      <button
+        onClick={() => toggleSort(key)}
+        className={`inline-flex items-center gap-1 hover:text-gray-900 transition-colors ${
+          sortKey === key ? "text-gray-900" : ""
+        }`}
+        title={`Sort by ${label.toLowerCase()}`}
+      >
+        {label}
+        {renderSortIcon(key)}
+      </button>
+    </th>
+  );
 
   return (
     <div className="p-4 md:p-6 bg-white min-h-screen rounded-lg">
@@ -692,7 +1289,7 @@ const Memberships: NextPage = () => {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mb-6">
         {summaryCards.map((card) => (
           <div
             key={card.label}
@@ -730,21 +1327,17 @@ const Memberships: NextPage = () => {
             >
               {tab.label}
               {tab.key !== "all" && !isLoading && (
-                <span className="ml-1.5 opacity-75">
-                  {tab.key === "active"
-                    ? counts.active
-                    : tab.key === "on_hold"
-                    ? counts.onHold
-                    : tab.key === "overdue"
-                    ? counts.overdue
-                    : counts.stopped}
-                </span>
+                <span className="ml-1.5 opacity-75">{countForTab(tab.key)}</span>
               )}
             </button>
           ))}
         </div>
         <div className="relative w-full md:w-72">
+          <label htmlFor="memberships-search" className="sr-only">
+            Search memberships
+          </label>
           <input
+            id="memberships-search"
             type="text"
             placeholder="Search name, parent, email or phone"
             value={searchQuery}
@@ -756,6 +1349,65 @@ const Memberships: NextPage = () => {
             size={18}
           />
         </div>
+      </div>
+
+      {/* Program / attendance filters */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <label
+            htmlFor="program-filter"
+            className="text-sm text-gray-600 whitespace-nowrap"
+          >
+            Program
+          </label>
+          <select
+            id="program-filter"
+            value={programFilter}
+            onChange={(e) =>
+              setProgramFilter(e.target.value as ProgramFilter)
+            }
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+          >
+            {PROGRAM_FILTER_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <label
+            htmlFor="attendance-filter"
+            className="text-sm text-gray-600 whitespace-nowrap"
+          >
+            Attendance
+          </label>
+          <select
+            id="attendance-filter"
+            value={attendanceFilter}
+            onChange={(e) =>
+              setAttendanceFilter(e.target.value as AttendanceFilter)
+            }
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+          >
+            {ATTENDANCE_FILTER_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {sortKey !== "default" && (
+          <button
+            onClick={() => {
+              setSortKey("default");
+              setSortDirection("asc");
+            }}
+            className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Default order
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -786,21 +1438,11 @@ const Memberships: NextPage = () => {
               <table className="w-full min-w-full">
                 <thead className="bg-white">
                   <tr className="border-b border-gray-200">
-                    <th className="text-left py-4 px-6 font-medium text-gray-600 whitespace-nowrap">
-                      Player
-                    </th>
-                    <th className="text-left py-4 px-6 font-medium text-gray-600 whitespace-nowrap">
-                      Plan
-                    </th>
-                    <th className="text-left py-4 px-6 font-medium text-gray-600 whitespace-nowrap">
-                      Status
-                    </th>
-                    <th className="text-left py-4 px-6 font-medium text-gray-600 whitespace-nowrap">
-                      Renewal
-                    </th>
-                    <th className="text-left py-4 px-6 font-medium text-gray-600 whitespace-nowrap">
-                      Payments
-                    </th>
+                    {sortableHeader("player", "Player")}
+                    {sortableHeader("plan", "Plan")}
+                    {sortableHeader("status", "Status")}
+                    {sortableHeader("renewal", "Renewal")}
+                    {sortableHeader("payments", "Payments")}
                     <th className="text-right py-4 px-6 font-medium text-gray-600 whitespace-nowrap">
                       Actions
                     </th>
@@ -827,8 +1469,17 @@ const Memberships: NextPage = () => {
                               {(row.fullname || "P").charAt(0).toUpperCase()}
                             </div>
                             <div>
-                              <div className="font-medium text-sm md:text-base">
-                                {row.fullname || "Unknown player"}
+                              <div className="flex items-center gap-2">
+                                {renderAttendanceDot(row)}
+                                <button
+                                  onClick={() => openDetail(row)}
+                                  className="font-medium text-sm md:text-base text-left text-gray-900 hover:text-[#E43125] hover:underline"
+                                  aria-label={`Open details for ${
+                                    row.fullname || "player"
+                                  }`}
+                                >
+                                  {row.fullname || "Unknown player"}
+                                </button>
                               </div>
                               <div className="text-gray-500 text-xs md:text-sm">
                                 {row.parent_name
@@ -865,7 +1516,11 @@ const Memberships: NextPage = () => {
                           </div>
                         </td>
                         <td className="py-4 px-6 whitespace-nowrap text-sm md:text-base text-gray-600">
-                          {row.subscriptionCounter}
+                          <div>
+                            {toNumber(row.subscriptionCounter)} payment
+                            {toNumber(row.subscriptionCounter) === 1 ? "" : "s"}
+                          </div>
+                          {renderReminderLine(row)}
                         </td>
                         <td className="py-4 px-6 whitespace-nowrap text-right">
                           <button
@@ -955,6 +1610,25 @@ const Memberships: NextPage = () => {
                 Extend
               </button>
             )}
+            {menuRow.membershipStatus === "suspended" ? (
+              <button
+                onClick={() => openModal("unsuspend", menuRow)}
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-green-700 hover:bg-green-50"
+              >
+                <ShieldCheck size={16} className="text-green-600" />
+                Lift suspension
+              </button>
+            ) : (
+              menuRow.membershipStatus !== "stopped" && (
+                <button
+                  onClick={() => openModal("suspend", menuRow)}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-amber-700 hover:bg-amber-50"
+                >
+                  <ShieldAlert size={16} className="text-amber-600" />
+                  Suspend account
+                </button>
+              )
+            )}
             {menuRow.membershipStatus !== "stopped" ? (
               <button
                 onClick={() => openModal("stop", menuRow)}
@@ -976,6 +1650,276 @@ const Memberships: NextPage = () => {
         </>
       )}
 
+      {/* Player detail drawer */}
+      {detailRow && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 z-40"
+            onClick={closeDetail}
+            aria-hidden="true"
+          />
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Details for ${detailRow.fullname || "player"}`}
+            className="fixed top-0 right-0 h-full w-[440px] max-w-[100vw] bg-white shadow-2xl z-40 flex flex-col"
+          >
+            <div className="flex items-start justify-between gap-3 p-5 border-b border-gray-200">
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold break-words">
+                  {detailRow.fullname || "Unknown player"}
+                </h2>
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  {detailAge !== null && (
+                    <span className="text-sm text-gray-500">
+                      {detailAge} year{detailAge === 1 ? "" : "s"} old
+                    </span>
+                  )}
+                  <span
+                    className={`px-2.5 py-1 rounded-full text-xs ${
+                      isPlanSet(detailRow.activePlan)
+                        ? "bg-blue-100 text-blue-800"
+                        : "bg-amber-100 text-amber-800"
+                    }`}
+                  >
+                    {planLabel(detailRow.activePlan)}
+                  </span>
+                  {renderStatusBadge(detailRow)}
+                </div>
+              </div>
+              <button
+                onClick={closeDetail}
+                className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                aria-label="Close player details"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-6">
+              {/* Contact */}
+              <section>
+                <h3 className="text-sm font-semibold text-gray-800 mb-2">
+                  Contact
+                </h3>
+                <dl className="space-y-2 text-sm">
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-gray-500">Parent</dt>
+                    <dd className="text-gray-800 text-right break-words">
+                      {detailRow.parent_name || "—"}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-gray-500">Phone</dt>
+                    <dd className="text-right">
+                      {detailRow.phone_number ? (
+                        <a
+                          href={`tel:${detailRow.phone_number}`}
+                          className="inline-flex items-center gap-1 text-blue-600 hover:underline break-all"
+                        >
+                          <Phone size={14} />
+                          {detailRow.phone_number}
+                        </a>
+                      ) : (
+                        <span className="text-gray-400">No phone</span>
+                      )}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-gray-500">Email</dt>
+                    <dd className="text-right">
+                      {detailRow.email ? (
+                        <a
+                          href={`mailto:${detailRow.email}`}
+                          className="inline-flex items-center gap-1 text-blue-600 hover:underline break-all"
+                        >
+                          <Mail size={14} />
+                          {detailRow.email}
+                        </a>
+                      ) : (
+                        <span className="text-gray-400">No email</span>
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+              </section>
+
+              {/* Membership */}
+              <section>
+                <h3 className="text-sm font-semibold text-gray-800 mb-2">
+                  Membership
+                </h3>
+                <dl className="space-y-2 text-sm">
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-gray-500">Renewal</dt>
+                    <dd className="text-gray-800">
+                      {formatDate(detailRow.currentSubscriptionEndDate)}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-gray-500">Time left</dt>
+                    <dd>{renderDaysRemaining(detailRow)}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-gray-500">Payments</dt>
+                    <dd className="text-gray-800">
+                      {toNumber(detailRow.subscriptionCounter)} payment
+                      {toNumber(detailRow.subscriptionCounter) === 1 ? "" : "s"}
+                    </dd>
+                  </div>
+                </dl>
+                {isSuspended(detailRow) && (
+                  <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-900">
+                    <div className="font-medium">
+                      Suspended · {suspensionReasonLabel(
+                        detailRow.suspensionReason
+                      )}
+                    </div>
+                    {formatDate(detailRow.suspendedAt) !== "—" && (
+                      <div className="text-xs text-violet-700 mt-0.5">
+                        Since {formatDate(detailRow.suspendedAt)}
+                      </div>
+                    )}
+                    {detailRow.suspensionNote && (
+                      <p className="mt-1 break-words">
+                        {detailRow.suspensionNote}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {detailRow.overdue && (
+                  <button
+                    onClick={() => sendPaymentReminder(detailRow)}
+                    disabled={isSendingReminder}
+                    className="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#E43125] text-white rounded-lg hover:bg-[#c9281e] transition-colors text-sm font-medium disabled:opacity-60"
+                  >
+                    {isSendingReminder ? (
+                      <Loader2 className="animate-spin" size={16} />
+                    ) : (
+                      <Send size={16} />
+                    )}
+                    Send payment reminder
+                  </button>
+                )}
+              </section>
+
+              {/* Notes & attendance */}
+              <section>
+                <h3 className="text-sm font-semibold text-gray-800 mb-2">
+                  Notes &amp; attendance
+                </h3>
+                <label
+                  htmlFor="player-internal-note"
+                  className="block text-sm text-gray-600 mb-1"
+                >
+                  Internal note
+                </label>
+                <textarea
+                  id="player-internal-note"
+                  rows={3}
+                  value={noteDraft}
+                  onChange={(e) => setNoteDraft(e.target.value)}
+                  placeholder="Anything the staff should know"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Only you and your staff see this.
+                </p>
+
+                <fieldset className="mt-4">
+                  <legend className="block text-sm text-gray-600 mb-1">
+                    Attendance
+                  </legend>
+                  <div className="flex flex-wrap gap-2">
+                    {ATTENDANCE_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => setAttendanceDraft(option.value)}
+                        aria-pressed={attendanceDraft === option.value}
+                        className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${
+                          attendanceDraft === option.value
+                            ? "border-[#E43125] bg-red-50 text-gray-900"
+                            : "border-gray-200 text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        <span
+                          className={`w-2.5 h-2.5 rounded-full ${option.dotClass}`}
+                        />
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <button
+                  onClick={() => saveNotes(detailRow)}
+                  disabled={isSavingNotes}
+                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#E43125] hover:bg-[#c9281e] text-white text-sm font-medium disabled:opacity-60"
+                >
+                  {isSavingNotes && (
+                    <Loader2 className="animate-spin" size={16} />
+                  )}
+                  Save notes
+                </button>
+              </section>
+
+              {/* Contact history */}
+              <section>
+                <h3 className="text-sm font-semibold text-gray-800 mb-2">
+                  Contact history
+                </h3>
+                {logsLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
+                    <Loader2 className="animate-spin" size={16} />
+                    Loading history...
+                  </div>
+                ) : logsError ? (
+                  <div className="flex flex-col items-start gap-2 text-sm">
+                    <p className="text-gray-700">Could not load contact history</p>
+                    <button
+                      onClick={() => fetchContactLog(detailRow.id)}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#E43125] text-white rounded-lg hover:bg-[#c9281e] text-sm"
+                    >
+                      <RefreshCw size={14} />
+                      Try again
+                    </button>
+                  </div>
+                ) : contactLogs.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                    No calls or emails logged yet.
+                  </p>
+                ) : (
+                  <ul className="space-y-3">
+                    {sortedContactLogs.map((entry) => (
+                      <li
+                        key={entry.id}
+                        className="border border-gray-200 rounded-lg p-3"
+                      >
+                        <div className="text-sm font-medium text-gray-800">
+                          {contactMethodLabel(entry.method)}
+                          <span className="ml-2 font-normal text-gray-500 text-xs">
+                            {formatDate(entry.createdAt)}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 mt-1 break-words">
+                          {entry.note || "—"}
+                        </p>
+                        <div className="text-xs text-gray-500 mt-1">
+                          by {entry.adminUsername || "system"}
+                          {formatDate(entry.followUpAt) !== "—"
+                            ? ` · follow up ${formatDate(entry.followUpAt)}`
+                            : ""}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </div>
+          </aside>
+        </>
+      )}
+
       {/* Modals */}
       {modal && modalRow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -983,7 +1927,7 @@ const Memberships: NextPage = () => {
             className="absolute inset-0 bg-black/50"
             onClick={closeModal}
           />
-          <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md p-5 md:p-6">
+          <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md p-5 md:p-6 max-h-[90vh] overflow-y-auto">
             <button
               onClick={closeModal}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
@@ -1197,6 +2141,115 @@ const Memberships: NextPage = () => {
               </>
             )}
 
+            {modal.type === "suspend" && (
+              <>
+                <h2 className="text-lg font-bold mb-1">Suspend account</h2>
+                <p className="text-gray-500 text-sm mb-4">
+                  {modalRow.fullname || "Unknown player"}
+                  {modalRow.parent_name
+                    ? ` · Parent: ${modalRow.parent_name}`
+                    : ""}
+                </p>
+                <div className="space-y-4">
+                  <fieldset>
+                    <legend className="block text-sm font-medium text-gray-700 mb-1">
+                      Why are you suspending this account?
+                    </legend>
+                    <div className="space-y-2">
+                      {SUSPENSION_REASON_OPTIONS.map((option) => (
+                        <label
+                          key={option.value}
+                          className={`flex items-start gap-3 px-3 py-2 border rounded-lg cursor-pointer text-sm ${
+                            suspendReason === option.value
+                              ? "border-[#E43125] bg-red-50"
+                              : "border-gray-200 hover:bg-gray-50"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="suspension-reason"
+                            value={option.value}
+                            checked={suspendReason === option.value}
+                            onChange={() => chooseSuspendReason(option.value)}
+                            className="accent-[#E43125] mt-0.5"
+                          />
+                          <span>
+                            <span className="font-medium text-gray-800 block">
+                              {option.label}
+                            </span>
+                            <span className="text-gray-500 text-xs">
+                              {option.hint}
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+
+                  <div>
+                    <label
+                      htmlFor="suspend-note"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Internal note (optional)
+                    </label>
+                    <textarea
+                      id="suspend-note"
+                      rows={3}
+                      value={suspendNote}
+                      onChange={(e) => setSuspendNote(e.target.value)}
+                      placeholder="What happened, and what needs to change"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Only you and your staff see this.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="flex items-start gap-3 text-sm text-gray-800">
+                      <input
+                        type="checkbox"
+                        checked={notifyParent}
+                        onChange={(e) => setNotifyParent(e.target.checked)}
+                        className="w-4 h-4 accent-[#E43125] mt-0.5"
+                      />
+                      <span className="font-medium">
+                        Email the parent about this suspension
+                      </span>
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1">
+                      For discipline matters most academies phone the parent
+                      first.
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {modal.type === "unsuspend" && (
+              <>
+                <h2 className="text-lg font-bold mb-2">Lift suspension</h2>
+                <p className="text-gray-600 text-sm">
+                  Put{" "}
+                  <span className="font-medium">
+                    {modalRow.fullname || "this player"}
+                  </span>{" "}
+                  back on the active list?
+                  {modalRow.suspensionReason
+                    ? ` They were suspended for: ${suspensionReasonLabel(
+                        modalRow.suspensionReason
+                      ).toLowerCase()}.`
+                    : ""}
+                </p>
+                {modalRow.suspensionNote && (
+                  <p className="text-gray-500 text-sm mt-2 break-words">
+                    Note: {modalRow.suspensionNote}
+                  </p>
+                )}
+              </>
+            )}
+
             <div className="mt-6 flex justify-end gap-2">
               <button
                 onClick={closeModal}
@@ -1211,19 +2264,7 @@ const Memberships: NextPage = () => {
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-60 bg-[#E43125] hover:bg-[#c9281e]"
               >
                 {isSubmitting && <Loader2 className="animate-spin" size={16} />}
-                {modal.type === "record-payment"
-                  ? "Record payment"
-                  : modal.type === "hold"
-                  ? "Put on hold"
-                  : modal.type === "extend"
-                  ? "Extend"
-                  : modal.type === "resume"
-                  ? "Resume"
-                  : modal.type === "stop"
-                  ? "Stop membership"
-                  : modal.type === "set-plan"
-                  ? "Save program"
-                  : "Reactivate"}
+                {MODAL_SUBMIT_LABEL[modal.type]}
               </button>
             </div>
           </div>

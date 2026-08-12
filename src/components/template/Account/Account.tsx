@@ -8,10 +8,15 @@ import {
   PortalMe,
   PortalPayment,
   PortalPlayer,
+  RenewInfo,
+  confirmRenewal,
   getPortalMe,
   portalLogin,
+  portalRenew,
   requestHold,
 } from "@/services/portal";
+
+const PAY_TO_EMAIL = "Excelpro.Etransfer@gmail.com";
 
 const TOKEN_KEY = "portal_token";
 const EMAIL_KEY = "portal_email";
@@ -242,6 +247,158 @@ const ModalShell = ({
     </div>
   </div>
 );
+
+const RenewModal = ({
+  player,
+  token,
+  onClose,
+  onSuccess,
+  onAuthError,
+}: {
+  player: PortalPlayer;
+  token: string;
+  onClose: () => void;
+  onSuccess: () => void;
+  onAuthError: () => void;
+}) => {
+  const [info, setInfo] = useState<RenewInfo | null>(null);
+  const [phase, setPhase] = useState<"loading" | "pay" | "done">("loading");
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await portalRenew(token, { userId: player.id });
+        if (cancelled) return;
+        setInfo(data);
+        setPhase("pay");
+      } catch (err) {
+        if (cancelled) return;
+        if (err instanceof PortalAuthError) {
+          onAuthError();
+          return;
+        }
+        setError(
+          err instanceof Error ? err.message : "Could not start the renewal"
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const confirm = async () => {
+    if (!info) return;
+    setError("");
+    setConfirming(true);
+    try {
+      await confirmRenewal(info.token);
+      setPhase("done");
+      onSuccess();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Could not confirm the payment"
+      );
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  return (
+    <ModalShell
+      title={`Renew membership — ${player.fullname}`}
+      onClose={onClose}
+    >
+      {phase === "loading" && !error && (
+        <p className="text-sm text-gray-600 py-4 text-center">
+          Preparing your payment details...
+        </p>
+      )}
+
+      {phase === "pay" && info && (
+        <div className="space-y-4">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-700 space-y-1">
+            <p>
+              Player: <span className="font-semibold">{player.fullname}</span>
+            </p>
+            <p>
+              Amount:{" "}
+              <span className="font-bold text-gray-900">
+                ${info.amount} CAD
+              </span>
+              {info.isFirstTimePayment && (
+                <span className="text-gray-500">
+                  {" "}
+                  ($380 + $75 one-time registration fee)
+                </span>
+              )}
+            </p>
+            <p>
+              Reference #:{" "}
+              <span className="font-mono text-xs">{String(info.transferId)}</span>
+            </p>
+          </div>
+
+          <div className="text-sm text-gray-700 space-y-2">
+            <p className="font-semibold text-gray-900">
+              Send an Interac e-transfer to:
+            </p>
+            <p className="font-mono bg-red-50 border border-red-100 rounded-md px-3 py-2 break-all">
+              {PAY_TO_EMAIL}
+            </p>
+            <p className="text-xs text-gray-500">
+              Please include the player&apos;s full name (
+              <span className="font-medium">{player.fullname}</span>) in the
+              e-transfer message so we can match your payment.
+            </p>
+          </div>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
+
+          <button
+            type="button"
+            onClick={confirm}
+            disabled={confirming}
+            className="w-full py-3 bg-primary hover:bg-[#c9281e] text-white rounded-md font-medium transition-colors disabled:opacity-60"
+          >
+            {confirming ? "Sending..." : "I have sent the e-transfer"}
+          </button>
+          <p className="text-xs text-gray-500 text-center">
+            Already paid? Click the button above — the academy verifies
+            e-transfers within 1–2 business days.
+          </p>
+        </div>
+      )}
+
+      {phase === "done" && (
+        <div className="space-y-4 text-center py-2">
+          <div className="text-4xl">✅</div>
+          <p className="text-sm text-gray-700">
+            Thanks! We&apos;ve recorded your payment confirmation for{" "}
+            <span className="font-semibold">{player.fullname}</span>. Once the
+            academy verifies the e-transfer (usually 1–2 business days), the
+            renewal date updates automatically and your receipt appears below.
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-3 bg-primary hover:bg-[#c9281e] text-white rounded-md font-medium transition-colors"
+          >
+            Done
+          </button>
+        </div>
+      )}
+
+      {phase === "loading" && error && (
+        <p className="text-sm text-red-600 py-2">{error}</p>
+      )}
+    </ModalShell>
+  );
+};
 
 const HoldModal = ({
   player,
@@ -500,7 +657,7 @@ const PlayerCard = ({
   onRefresh: () => void;
   onAuthError: () => void;
 }) => {
-  const [modal, setModal] = useState<"hold" | null>(null);
+  const [modal, setModal] = useState<"hold" | "renew" | null>(null);
   const [successNote, setSuccessNote] = useState("");
 
   const renewalTone = player.overdue
@@ -552,6 +709,16 @@ const PlayerCard = ({
           type="button"
           onClick={() => {
             setSuccessNote("");
+            setModal("renew");
+          }}
+          className="px-5 py-2 text-sm font-semibold bg-primary hover:bg-[#c9281e] text-white rounded-md transition-colors"
+        >
+          {player.overdue ? "Pay now" : "Renew membership"}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setSuccessNote("");
             setModal("hold");
           }}
           className="px-4 py-2 text-sm font-medium border border-gray-300 text-gray-700 rounded-md hover:border-primary hover:text-primary transition-colors"
@@ -592,6 +759,23 @@ const PlayerCard = ({
       )}
 
       <PaymentsSection player={player} />
+
+      {modal === "renew" && (
+        <RenewModal
+          player={player}
+          token={token}
+          onClose={() => {
+            setModal(null);
+            onRefresh();
+          }}
+          onAuthError={onAuthError}
+          onSuccess={() => {
+            setSuccessNote(
+              "Payment confirmation sent — we'll verify it within 1–2 business days."
+            );
+          }}
+        />
+      )}
 
       {modal === "hold" && (
         <HoldModal
@@ -738,13 +922,21 @@ const Account = () => {
                       : "")}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={signOut}
-                className="px-4 py-2 text-sm font-medium border border-gray-300 text-gray-700 rounded-md hover:border-primary hover:text-primary transition-colors"
-              >
-                Sign out
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <Link
+                  href="/register"
+                  className="px-4 py-2 text-sm font-semibold bg-primary hover:bg-[#c9281e] text-white rounded-md transition-colors"
+                >
+                  + Add another player
+                </Link>
+                <button
+                  type="button"
+                  onClick={signOut}
+                  className="px-4 py-2 text-sm font-medium border border-gray-300 text-gray-700 rounded-md hover:border-primary hover:text-primary transition-colors"
+                >
+                  Sign out
+                </button>
+              </div>
             </div>
 
             {loading && (
@@ -757,13 +949,30 @@ const Account = () => {
             )}
 
             {!loading && me && me.players.length === 0 && (
-              <div className="bg-white rounded-xl shadow-md border border-gray-100 p-6 text-center text-gray-600">
-                No players are registered under this email yet. If that seems
-                wrong, please{" "}
-                <Link href="/contact-us" className="text-primary hover:underline">
-                  contact us
+              <div className="bg-white rounded-xl shadow-md border border-gray-100 p-8 text-center text-gray-600">
+                <p className="text-lg font-semibold text-gray-900">
+                  No players registered yet
+                </p>
+                <p className="mt-2 text-sm">
+                  Register your first player — it only takes a few minutes, and
+                  you won&apos;t need another sign-in code.
+                </p>
+                <Link
+                  href="/register"
+                  className="mt-5 inline-block px-6 py-3 bg-primary hover:bg-[#c9281e] text-white rounded-md font-semibold transition-colors"
+                >
+                  Register a player
                 </Link>
-                .
+                <p className="mt-4 text-xs text-gray-400">
+                  Expecting to see a player here?{" "}
+                  <Link
+                    href="/contact-us"
+                    className="text-primary hover:underline"
+                  >
+                    Contact us
+                  </Link>{" "}
+                  and we&apos;ll link them to your email.
+                </p>
               </div>
             )}
 

@@ -86,6 +86,63 @@ export const getPortalMe = async (token: string): Promise<PortalMe> => {
   return data;
 };
 
+export interface RenewInfo {
+  transferId: string | number;
+  token: string;
+  amount: number;
+  plan: string;
+  isFirstTimePayment: boolean;
+  playerName: string;
+}
+
+/** Start a renewal: creates (or re-uses) a pending e-transfer payment request. */
+export const portalRenew = async (
+  token: string,
+  payload: { userId: number }
+): Promise<RenewInfo> => {
+  const res = await fetch(`${API}/portal/renew`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (res.status === 401) {
+    throw new PortalAuthError();
+  }
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.message || "Could not start the renewal");
+  }
+
+  return data;
+};
+
+/** Parent confirms they have sent the e-transfer for a renewal. */
+export const confirmRenewal = async (
+  transferToken: string
+): Promise<{ success: boolean }> => {
+  const res = await fetch(
+    `${API}/transfer/token/${transferToken}/confirm`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    }
+  );
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.message || "Could not confirm the payment");
+  }
+
+  return { success: true };
+};
+
 export const requestHold = async (
   token: string,
   payload: { userId: number; resumeAt?: string; note?: string }

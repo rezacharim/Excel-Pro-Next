@@ -151,6 +151,7 @@ const Etransfer = () => {
   const [step, setStep] = useState(1); // 1: initial, 2: instructions, 3: confirmation
   const [transferId, setTransferId] = useState<string | null>(null);
   const [transferToken, setTransferToken] = useState<string | null>(null);
+  const [serverAmount, setServerAmount] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan>("U13_U14");
   const [error, setError] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
@@ -202,8 +203,17 @@ const Etransfer = () => {
     }
   }, [division]);
 
-  // Fetch userId from phone number
+  // Identify which player this payment is for. The registration step stores
+  // the newly created player's id — use it directly so families with more
+  // than one player (same parent phone) never pay against the wrong player.
   useEffect(() => {
+    const storedId = localStorage.getItem("userId");
+    if (storedId && /^\d+$/.test(storedId)) {
+      setUserId(storedId);
+      return;
+    }
+
+    // Fallback for older sessions: look the player up by phone number.
     const fetchUserId = async () => {
       if (!userForm.phone_number) return;
 
@@ -266,6 +276,10 @@ const Etransfer = () => {
       const data = await response.json();
       setTransferId(data.id);
       setTransferToken(data.token);
+      // The backend decides the final amount — display that, not our guess.
+      if (data.amount) {
+        setServerAmount(String(Math.round(Number(data.amount))));
+      }
       setStep(2); // Go to instructions step
     } catch (err) {
       setError(
@@ -404,7 +418,9 @@ const Etransfer = () => {
               <li>Email: {bankEmails[0].email}</li>
             </ul>
             <p className="text-sm text-gray-600">{bankEmails[0].notes}</p>
-            <p className="font-bold mt-4">Amount to pay: ${finalPrice}</p>
+            <p className="font-bold mt-4">
+              Amount to pay: ${serverAmount || finalPrice}
+            </p>
           </div>
 
           <p className="mb-4">
@@ -440,18 +456,23 @@ const Etransfer = () => {
             <p className="font-bold">Payment Details:</p>
             <p>Reference Number: {transferId}</p>
             <p>Plan: {getPlanDisplayName(selectedPlan)}</p>
-            <p>Amount: ${finalPrice}</p>
+            <p>Amount: ${serverAmount || finalPrice}</p>
             <p className="text-amber-600 font-medium mt-2">
               Note: Your registration will be finalized after admin approval.
             </p>
           </div>
 
           <Button
-            onClick={() => router.push("/program")}
+            onClick={() => router.push("/account")}
             className="w-full text-white font-bold rounded focus:outline-none focus:shadow-outline"
           >
-            Return to Registration
+            Go to my family dashboard
           </Button>
+          <p className="mt-3 text-center text-sm text-gray-500">
+            Your player, renewal date and receipts all live in{" "}
+            <span className="font-medium">My Account</span> — you can come back
+            any time with just your email.
+          </p>
         </div>
       )}
     </div>

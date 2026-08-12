@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { NextPage } from "next";
 import { Formik, Field, Form, ErrorMessage, FieldProps } from "formik";
 import * as Yup from "yup";
@@ -48,6 +49,7 @@ const CODE_LIFETIME_SECONDS = 600;
 const RESEND_DELAY_SECONDS = 60;
 
 const AuthForm: NextPage<AuthFormProps> = ({ auth }) => {
+  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isFocused, setIsFocused] = useState<boolean>(false);
   const [countdown, setCountdown] = useState<number>(0);
@@ -129,13 +131,22 @@ const AuthForm: NextPage<AuthFormProps> = ({ auth }) => {
         setEmailVerified(true);
         setFeedback({ type: "success", text: "Email verified successfully." });
 
-        // Check if user exists in database
+        // Verifying the email also signs the parent in to the family
+        // dashboard (/account) — one code, one session.
+        if (res.token) {
+          localStorage.setItem("portal_token", res.token);
+          localStorage.setItem("portal_email", res.email || email);
+        }
+
+        // Existing family? Their players, renewals and payments all live in
+        // the family dashboard — send them there instead of a bare payment
+        // screen.
         try {
           const userData = await getUserByEmail(email);
           if (userData) {
             setFeedback({
               type: "success",
-              text: "Welcome back! Redirecting to your profile.",
+              text: "Welcome back! Taking you to your family dashboard...",
             });
             setIsFirstTime(userData.subscriptionCounter === 0);
             setEmail(userData.email);
@@ -143,10 +154,11 @@ const AuthForm: NextPage<AuthFormProps> = ({ auth }) => {
             if (userData.phone_number) {
               setPhoneNumber(userData.phone_number);
             }
-            setStep(8);
-          } else {
-            setStep(1);
+            router.push("/account");
+            return;
           }
+          setIsFirstTime(true);
+          setStep(1);
           auth(true);
         } catch (error) {
           console.error("Error fetching user data:", error);

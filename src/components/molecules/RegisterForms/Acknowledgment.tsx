@@ -6,8 +6,28 @@ import useUserFormStore from "@/stores/UserFormStore";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { useDivisionStore } from "@/stores/divisionStore";
+import {
+  ExperienceLevel,
+  PlayerPosition,
+} from "@/stores/UserFormStore/enums/enums";
+import SoccerBackground from "./SoccerBackground";
+import PlayerPhotoUpload from "./AdditionalInformation";
+import { TextareaField, submitButtonClasses } from "./Fields";
+
+const MEDICAL_NOTES_MAX = 1000;
 
 const validationSchema = Yup.object({
+  experienceLevel: Yup.string().required("Please choose an experience level"),
+  player_positions: Yup.string().required("Please choose a position"),
+  custom_position: Yup.string().when("player_positions", {
+    is: PlayerPosition.OTHER,
+    then: (schema) => schema.trim().required("Please tell us which position"),
+    otherwise: (schema) => schema.optional(),
+  }),
+  medicalNotes: Yup.string().max(
+    MEDICAL_NOTES_MAX,
+    `Please use ${MEDICAL_NOTES_MAX} characters or fewer`
+  ),
   policy: Yup.boolean().oneOf([true], "You must agree to the policy"),
 });
 
@@ -18,6 +38,7 @@ const validationSchema = Yup.object({
  * This is the safety net for parents who register straight from the menu
  * instead of from a program page: without it those players used to be saved
  * with a placeholder plan and showed up as "Not set" in the admin dashboard.
+ * Step 1 also uses it to show the parent which program their child lands in.
  */
 export const planFromDateOfBirth = (dateOfBirth?: string): string | null => {
   if (!dateOfBirth) return null;
@@ -109,8 +130,20 @@ const Acknowledgment: NextPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const { policy, setPolicy, photoUrl, nationalIdCard, ...userFormData } =
-    useUserFormStore();
+  const {
+    experienceLevel,
+    player_positions,
+    custom_position,
+    medicalNotes,
+    policy,
+    photoUrl,
+    setExperienceLevel,
+    setPlayerPosition,
+    setCustomPosition,
+    setMedicalNotes,
+    setPolicy,
+    setPhotoUrl,
+  } = useUserFormStore();
 
   // Main registration function that handles the full registration flow
   const completeRegistration = async () => {
@@ -122,20 +155,14 @@ const Acknowledgment: NextPage = () => {
 
     while (attempt < maxRetries) {
       try {
-        if (!photoUrl || !nationalIdCard) {
-          setMessage(
-            "Error: Photo data is missing. Please go back and upload photos again."
-          );
-          setIsLoading(false);
-          return;
-        }
+        // Read the store fresh: this step writes its own answers just before
+        // submitting, so the values captured at render time would be stale.
+        const userFormData = useUserFormStore.getState();
 
         const requestBody = {
           fullname: userFormData.fullname,
           dateOfBirth: userFormData.dateOfBirth,
           gender: userFormData.gender,
-          height: userFormData.height.toString(),
-          weight: userFormData.weight.toString(),
           tShirtSize: userFormData.tShirtSize,
           shortSize: userFormData.shortSize,
           jacketSize: userFormData.jacketSize,
@@ -146,6 +173,7 @@ const Acknowledgment: NextPage = () => {
           emergencyContactName: userFormData.emergencyContactName,
           emergencyPhone: userFormData.emergencyPhone,
           experienceLevel: userFormData.experienceLevel || "",
+          medicalNotes: userFormData.medicalNotes || "",
           parent_name: userFormData.parent_name,
           phone_number: userFormData.phone_number,
           email: userFormData.email || "",
@@ -153,8 +181,8 @@ const Acknowledgment: NextPage = () => {
           activePlan: resolvePlan(division, userFormData.dateOfBirth),
           policy: true,
           custom_position: userFormData.custom_position || "",
-          photoUrl: photoUrl,
-          NationalIdCard: nationalIdCard,
+          // Optional now — an empty string simply means "no photo yet".
+          photoUrl: userFormData.photoUrl || "",
         };
 
         console.log(`Attempt ${attempt + 1}: Sending registration data...`);
@@ -209,161 +237,211 @@ const Acknowledgment: NextPage = () => {
         await new Promise((res) => setTimeout(res, 1000));
       }
     }
+
+    setIsLoading(false);
   };
 
   // Use formik for handling form validation
   const formik = useFormik({
     initialValues: {
+      experienceLevel: experienceLevel || ExperienceLevel.BEGINNER,
+      player_positions: player_positions || "",
+      custom_position: custom_position || "",
+      medicalNotes: medicalNotes || "",
       policy: policy || false,
     },
     validationSchema,
     onSubmit: async (values) => {
-      // Update store with form values
+      // Save this step's answers, then send everything to the backend.
+      setExperienceLevel(values.experienceLevel as ExperienceLevel);
+      setPlayerPosition(values.player_positions as PlayerPosition);
+      setCustomPosition(
+        values.player_positions === PlayerPosition.OTHER
+          ? values.custom_position.trim()
+          : ""
+      );
+      setMedicalNotes(values.medicalNotes.trim());
       setPolicy(values.policy);
-      // Start the registration process
       await completeRegistration();
     },
   });
 
+  const errorFor = (field: keyof typeof formik.values) =>
+    formik.touched[field] ? (formik.errors[field] as string | undefined) : undefined;
+
   return (
-    <>
-      {/* Form Content */}
-      <div className="mb-8">
-        <h1 className="text-xl sm:text-2xl font-bold mb-4">
-          Terms and Conditions
-        </h1>
-        <p className="text-gray-600 mb-4">
-          Please review and agree to the following terms before completing your
-          registration.
-        </p>
+    <div className="mb-8">
+      <h1 className="text-xl sm:text-2xl font-bold mb-1">Soccer &amp; consent</h1>
+      <p className="text-gray-600 mb-6 text-sm">
+        Last step — a few soccer details and the academy policy.
+      </p>
 
-        {message && (
-          <div
-            className={`p-4 mb-4 ${
-              message.includes("Failed") || message.includes("Error")
-                ? "bg-red-50 border border-red-200 text-red-700"
-                : "bg-yellow-50 border border-yellow-200 text-yellow-700"
-            } rounded-md`}
-          >
-            {message}
-          </div>
-        )}
+      {message && (
+        <div
+          role="alert"
+          className={`p-4 mb-4 ${
+            message.includes("Failed") || message.includes("Error")
+              ? "bg-red-50 border border-red-200 text-red-700"
+              : "bg-yellow-50 border border-yellow-200 text-yellow-700"
+          } rounded-md`}
+        >
+          {message}
+        </div>
+      )}
 
-        <form onSubmit={formik.handleSubmit}>
-          <div className="mt-6 border rounded-lg p-5 bg-gray-50">
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold mb-2">Policy Agreement</h2>
-              <div className="text-gray-700 mb-4 leading-relaxed text-sm">
-                <p className="mb-2">
-                  I the parent or guardian of the above named player understand
-                  and assume all risks involved in playing soccer, including the
-                  risk of property damage, personal injury and death resulting
-                  from any cause whatsoever, including but not limited to
-                  collision with the ball, other players, persons, the ground,
-                  goal post or other man-made objects, weather and field
-                  conditions, traffic hazards while being transported to or from
-                  any location.
-                </p>
-                <p className="mb-2">
-                  I have considered these risks and hereby consent to the
-                  Player&apos;s participation in Excel Pro Soccer Academy and
-                  agree that Excel Pro Soccer Academy shall not be responsible
-                  for any such personal injury, death or property loss.
-                </p>
-                <p className="mb-2">
-                  I grant Excel Pro Soccer Academy the right to request any
-                  participant, player, parent or volunteer to withdraw from the
-                  program prior to its termination if the person is not acting
-                  in a responsible, safe, fair and/or sportsmanlike manner.
-                </p>
-                <p className="mb-2">
-                  I understand that the information collected on this form will
-                  be used by the organization to establish my child&apos;s
-                  eligibility to participate in their soccer program and to
-                  contact me when required in respect to soccer related
-                  activities. The names, addresses, phone numbers and email
-                  addresses on this form may be shared with members of the team
-                  that my child is on.
-                </p>
-                <p className="mb-2">
-                  I agree to allow Excel Pro Soccer Academy to use the
-                  player&apos;s image in photo or Video releases they deem
-                  appropriate. I further acknowledge that the likeness of the
-                  player may be captured and stored by other parents,
-                  organizations and media companies without the knowledge or
-                  consent of Excel Pro Soccer Academy.
-                </p>
-              </div>
+      <form onSubmit={formik.handleSubmit} noValidate>
+        <SoccerBackground
+          experienceLevel={formik.values.experienceLevel}
+          playerPosition={formik.values.player_positions}
+          customPosition={formik.values.custom_position}
+          onChange={(field, value) => formik.setFieldValue(field, value)}
+          errors={{
+            experienceLevel: errorFor("experienceLevel"),
+            player_positions: errorFor("player_positions"),
+            custom_position: errorFor("custom_position"),
+          }}
+        />
 
-              <div className="flex items-center">
-                <input
-                  id="policy"
-                  name="policy"
-                  type="checkbox"
-                  checked={formik.values.policy}
-                  onChange={(e) =>
-                    formik.setFieldValue("policy", e.target.checked)
-                  }
-                  className="h-4 w-4 text-red-600 focus:ring-red-500"
-                />
-                <label
-                  htmlFor="policy"
-                  className="ml-2 block text-gray-900 font-medium"
-                >
-                  I agree to the policy
-                </label>
-              </div>
-              {formik.touched.policy && formik.errors.policy && (
-                <div className="text-red-500 text-sm mt-1">
-                  {formik.errors.policy}
-                </div>
-              )}
+        <div className="mb-6">
+          <TextareaField
+            id="medicalNotes"
+            name="medicalNotes"
+            label="Anything our coaches must know — allergies, asthma, medication, past injuries"
+            hint="Only the academy's staff can see this."
+            maxLength={MEDICAL_NOTES_MAX}
+            rows={4}
+            placeholder="Example: mild peanut allergy, carries an inhaler"
+            value={formik.values.medicalNotes}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            error={errorFor("medicalNotes")}
+          />
+        </div>
+
+        <div className="mb-6">
+          <PlayerPhotoUpload value={photoUrl} onChange={setPhotoUrl} />
+        </div>
+
+        <div className="mt-6 border rounded-lg p-5 bg-gray-50">
+          <div className="mb-2">
+            <h2 className="text-lg font-semibold mb-2">Policy Agreement</h2>
+            <div className="text-gray-700 mb-4 leading-relaxed text-sm">
+              <p className="mb-2">
+                I the parent or guardian of the above named player understand
+                and assume all risks involved in playing soccer, including the
+                risk of property damage, personal injury and death resulting
+                from any cause whatsoever, including but not limited to
+                collision with the ball, other players, persons, the ground,
+                goal post or other man-made objects, weather and field
+                conditions, traffic hazards while being transported to or from
+                any location.
+              </p>
+              <p className="mb-2">
+                I have considered these risks and hereby consent to the
+                Player&apos;s participation in Excel Pro Soccer Academy and
+                agree that Excel Pro Soccer Academy shall not be responsible for
+                any such personal injury, death or property loss.
+              </p>
+              <p className="mb-2">
+                I grant Excel Pro Soccer Academy the right to request any
+                participant, player, parent or volunteer to withdraw from the
+                program prior to its termination if the person is not acting in
+                a responsible, safe, fair and/or sportsmanlike manner.
+              </p>
+              <p className="mb-2">
+                I understand that the information collected on this form will be
+                used by the organization to establish my child&apos;s
+                eligibility to participate in their soccer program and to
+                contact me when required in respect to soccer related
+                activities. The names, addresses, phone numbers and email
+                addresses on this form may be shared with members of the team
+                that my child is on.
+              </p>
+              <p className="mb-2">
+                I agree to allow Excel Pro Soccer Academy to use the
+                player&apos;s image in photo or Video releases they deem
+                appropriate. I further acknowledge that the likeness of the
+                player may be captured and stored by other parents,
+                organizations and media companies without the knowledge or
+                consent of Excel Pro Soccer Academy.
+              </p>
             </div>
-          </div>
 
-          {/* Submit Button */}
-          <div className="mt-8">
-            <Button
-              type="submit"
-              className={`font-medium w-full py-3 rounded-md ${
-                !formik.values.policy || isLoading
-                  ? "bg-red-400 cursor-not-allowed"
-                  : "bg-primary hover:bg-[#c9281e] text-white"
-              }`}
-              disabled={!formik.values.policy || isLoading}
-            >
-              {isLoading ? (
-                <span className="flex items-center justify-center">
-                  <svg
-                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Processing Registration...
+            <div className="flex items-center">
+              <input
+                id="policy"
+                name="policy"
+                type="checkbox"
+                checked={formik.values.policy}
+                onChange={(e) =>
+                  formik.setFieldValue("policy", e.target.checked)
+                }
+                aria-invalid={Boolean(errorFor("policy"))}
+                aria-describedby={
+                  errorFor("policy") ? "policy-error" : undefined
+                }
+                className="h-5 w-5 rounded border-gray-300 text-[#E43125] focus:ring-[#E43125]"
+              />
+              <label
+                htmlFor="policy"
+                className="ml-2 block text-gray-900 font-medium"
+              >
+                I agree to the policy{" "}
+                <span className="text-[#E43125]" aria-hidden="true">
+                  *
                 </span>
-              ) : (
-                "Complete Registration"
-              )}
-            </Button>
+              </label>
+            </div>
+            {errorFor("policy") && (
+              <p
+                id="policy-error"
+                role="alert"
+                className="mt-1 text-sm text-red-600"
+              >
+                {errorFor("policy")}
+              </p>
+            )}
           </div>
-        </form>
-      </div>
-    </>
+        </div>
+
+        {/* Submit Button */}
+        <div className="mt-8">
+          <Button
+            type="submit"
+            className={submitButtonClasses(isLoading)}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <span className="flex items-center justify-center">
+                <svg
+                  className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                Processing Registration...
+              </span>
+            ) : (
+              "Complete Registration"
+            )}
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 };
 

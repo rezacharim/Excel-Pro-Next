@@ -3,6 +3,7 @@ import { NextPage } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { useRegisterStepStore } from "@/stores/registerStepStore";
+import { TOTAL_STEPS } from "../RegisterForm/data";
 
 const Header: NextPage = () => {
   const { setStep, step } = useRegisterStepStore();
@@ -15,7 +16,7 @@ const Header: NextPage = () => {
             <div
               onClick={() => setStep(step - 1)}
               className={`text-gray-600 hover:text-gray-800 ${
-                step === 1 || step > 5 ? "hidden" : ""
+                step === 1 || step > TOTAL_STEPS ? "hidden" : ""
               }`}
             >
               <svg

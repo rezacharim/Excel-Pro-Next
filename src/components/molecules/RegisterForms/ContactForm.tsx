@@ -1,227 +1,317 @@
-import { useState } from "react";
 import { NextPage } from "next";
 import { Button } from "@/components/atoms/Button/Button";
 import { useRegisterStepStore } from "@/stores/registerStepStore";
-import FloatingLabelInput from "@/components/organisms/FloatingLabelInput/FloatingLabelInput";
 import useUserFormStore from "@/stores/UserFormStore";
 import { useFormik } from "formik";
 import * as Yup from "yup";
+import { TextField, submitButtonClasses } from "./Fields";
+
+/**
+ * Deliberately forgiving: parents type "(416) 555-0123", "416-555-0123" or
+ * "+1 416 555 0123" and all of them are the same number. We only insist on a
+ * plausible 10-digit Canadian number once the formatting is stripped out.
+ */
+const digitsOnly = (value: string) => value.replace(/\D/g, "");
+
+const isPlausiblePhone = (value?: string) => {
+  const digits = digitsOnly(value || "");
+  return digits.length === 10 || (digits.length === 11 && digits.startsWith("1"));
+};
+
+/** Store phones in one canonical shape (+1XXXXXXXXXX) for the backend. */
+const normalizePhone = (value: string) => {
+  const digits = digitsOnly(value);
+  const local = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+  return local.length === 10 ? `+1${local}` : value.trim();
+};
+
+// A1A 1A1, with or without the space/dash, upper or lower case.
+const POSTAL_CODE_REGEX = /^[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d$/;
 
 const validationSchema = Yup.object({
+  parent_name: Yup.string()
+    .trim()
+    .required("Please enter the parent or guardian's name")
+    .max(200, "Please use 200 characters or fewer"),
+  phone_number: Yup.string()
+    .required("Please enter a phone number we can reach you on")
+    .test("phone", "Please enter a 10-digit phone number, e.g. 416 555 0123", (v) =>
+      isPlausiblePhone(v)
+    ),
+  email: Yup.string()
+    .email("Please enter a valid email address")
+    .required("Please enter an email address"),
   address: Yup.string()
-    .required("Address is required")
-    .max(500, "Address cannot exceed 500 characters"),
-  postalCode: Yup.string()
-    .required("Postal code is required")
-    .max(20, "Postal code cannot exceed 20 characters"),
+    .trim()
+    .required("Please enter your street address")
+    .max(500, "Please use 500 characters or fewer"),
   city: Yup.string()
-    .required("City is required")
-    .max(100, "City cannot exceed 100 characters"),
+    .trim()
+    .required("Please enter your city")
+    .max(100, "Please use 100 characters or fewer"),
+  postalCode: Yup.string()
+    .required("Please enter your postal code")
+    .test("postal", "Please enter a postal code like M5V 2T6", (v) =>
+      POSTAL_CODE_REGEX.test((v || "").trim())
+    ),
   emergencyContactName: Yup.string()
-    .required("Emergency contact name is required")
-    .max(200, "Emergency contact name cannot exceed 200 characters"),
+    .trim()
+    .required("Please enter an emergency contact name")
+    .max(200, "Please use 200 characters or fewer"),
   emergencyPhone: Yup.string()
-    .required("Emergency phone is required")
-    .max(20, "Emergency phone cannot exceed 20 characters"),
+    .required("Please enter an emergency phone number")
+    .test("phone", "Please enter a 10-digit phone number, e.g. 416 555 0123", (v) =>
+      isPlausiblePhone(v)
+    ),
 });
 
-const AddressAndEmergencyForm: NextPage = () => {
+const ParentAndContactForm: NextPage = () => {
   const { setStep, step } = useRegisterStepStore();
-  const { 
-    address, 
-    postalCode, 
-    city, 
-    emergencyContactName, 
+  const {
+    parent_name,
+    phone_number,
+    email,
+    emailVerified,
+    address,
+    postalCode,
+    city,
+    emergencyContactName,
     emergencyPhone,
+    setParentName,
+    setPhoneNumber,
+    setEmail,
     setAddress,
     setPostalCode,
     setCity,
     setEmergencyContactName,
-    setEmergencyPhone
+    setEmergencyPhone,
   } = useUserFormStore();
 
-  const [focused, setFocused] = useState({
-    address: Boolean(address),
-    postalCode: Boolean(postalCode),
-    city: Boolean(city),
-    emergencyContactName: Boolean(emergencyContactName),
-    emergencyPhone: Boolean(emergencyPhone),
-  });
+  // Ticked by default (the common case), but a parent coming back to this step
+  // keeps whatever separate emergency contact they already entered.
+  const startsSameAsParent =
+    (!emergencyContactName && !emergencyPhone) ||
+    (emergencyContactName === parent_name && emergencyPhone === phone_number);
 
   const formik = useFormik({
     initialValues: {
+      parent_name: parent_name || "",
+      phone_number: phone_number || "",
+      email: email || "",
       address: address || "",
-      postalCode: postalCode || "",
       city: city || "",
-      emergencyContactName: emergencyContactName || "",
-      emergencyPhone: emergencyPhone || "",
+      postalCode: postalCode || "",
+      emergencyContactName: startsSameAsParent
+        ? parent_name || ""
+        : emergencyContactName,
+      emergencyPhone: startsSameAsParent ? phone_number || "" : emergencyPhone,
+      sameAsParent: startsSameAsParent,
     },
     validationSchema,
     onSubmit: (values) => {
-      setAddress(values.address);
-      setPostalCode(values.postalCode);
-      setCity(values.city);
-      setEmergencyContactName(values.emergencyContactName);
-      setEmergencyPhone(values.emergencyPhone);
-      const nextStep = step + 1;
-      setStep(nextStep);
+      setParentName(values.parent_name.trim());
+      setPhoneNumber(normalizePhone(values.phone_number));
+      setEmail(values.email);
+      setAddress(values.address.trim());
+      setCity(values.city.trim());
+      setPostalCode(values.postalCode.trim().toUpperCase());
+      setEmergencyContactName(values.emergencyContactName.trim());
+      setEmergencyPhone(normalizePhone(values.emergencyPhone));
+      setStep(step + 1);
     },
   });
 
-  const handleFocus = (field: string) => {
-    setFocused({
-      ...focused,
-      [field]: true,
-    });
+  const { sameAsParent } = formik.values;
+
+  const errorFor = (field: keyof typeof formik.values) =>
+    formik.touched[field] ? (formik.errors[field] as string | undefined) : undefined;
+
+  // While "same as parent/guardian" is ticked the emergency fields shadow the
+  // parent's details, so editing the parent above keeps them in sync.
+  const handleParentNameChange = (value: string) => {
+    formik.setFieldValue("parent_name", value);
+    if (sameAsParent) formik.setFieldValue("emergencyContactName", value);
   };
 
-  const handleBlur = (field: string) => {
-    formik.handleBlur({ target: { name: field } });
-    setFocused({
-      ...focused,
-      [field]: formik.values[field as keyof typeof formik.values] !== "",
-    });
+  const handleParentPhoneChange = (value: string) => {
+    formik.setFieldValue("phone_number", value);
+    if (sameAsParent) formik.setFieldValue("emergencyPhone", value);
+  };
+
+  const handleSameAsParentChange = (checked: boolean) => {
+    formik.setFieldValue("sameAsParent", checked);
+    if (checked) {
+      formik.setFieldValue("emergencyContactName", formik.values.parent_name);
+      formik.setFieldValue("emergencyPhone", formik.values.phone_number);
+    } else {
+      // Cleared so the parent types a genuinely different contact.
+      formik.setFieldValue("emergencyContactName", "");
+      formik.setFieldValue("emergencyPhone", "");
+    }
   };
 
   return (
-    <>
-      {/* Form Content */}
-      <div className="mb-8">
-        <h1 className="text-xl sm:text-2xl font-bold mb-4">
-          Location and Emergency Contact Information
-        </h1>
-        <p className="mb-4">
-          Please provide your address details and emergency contact information. This information will be used in case of emergency during training sessions or matches.
-        </p>
+    <div className="mb-8">
+      <h1 className="text-xl sm:text-2xl font-bold mb-1">Parent &amp; contact</h1>
+      <p className="text-gray-600 mb-6 text-sm">
+        How we reach you, and who we call if something happens at training.
+      </p>
 
-        <form onSubmit={formik.handleSubmit}>
-          <div className="grid grid-cols-1 gap-4 sm:gap-6 mt-6">
-            {/* Address */}
-            <div>
-              <FloatingLabelInput
-                id="address"
-                name="address"
-                label="Full Address"
-                type="text"
-                value={formik.values.address}
-                onChange={formik.handleChange}
-                onFocus={() => handleFocus("address")}
-                onBlur={() => handleBlur("address")}
-                placeholder="Example: 123 Main Street, Apartment 4B"
-                isFocused={focused.address}
+      <form onSubmit={formik.handleSubmit} noValidate>
+        <div className="grid grid-cols-1 gap-5">
+          <TextField
+            id="parent_name"
+            name="parent_name"
+            label="Parent/guardian name"
+            required
+            type="text"
+            autoComplete="name"
+            placeholder="Example: Jane Smith"
+            value={formik.values.parent_name}
+            onChange={(e) => handleParentNameChange(e.target.value)}
+            onBlur={formik.handleBlur}
+            error={errorFor("parent_name")}
+          />
+
+          <TextField
+            id="phone_number"
+            name="phone_number"
+            label="Parent phone"
+            required
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="Example: 416 555 0123"
+            value={formik.values.phone_number}
+            onChange={(e) => handleParentPhoneChange(e.target.value)}
+            onBlur={formik.handleBlur}
+            error={errorFor("phone_number")}
+          />
+
+          <TextField
+            id="email"
+            name="email"
+            label="Parent email"
+            required
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            placeholder="Example: email@example.com"
+            value={formik.values.email}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            readOnly={emailVerified}
+            hint={emailVerified ? "✓ Verified email address" : undefined}
+            error={errorFor("email")}
+          />
+
+          <TextField
+            id="address"
+            name="address"
+            label="Street address"
+            required
+            type="text"
+            autoComplete="street-address"
+            placeholder="Example: 123 Main Street, Apt 4B"
+            value={formik.values.address}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            error={errorFor("address")}
+          />
+
+          <TextField
+            id="city"
+            name="city"
+            label="City"
+            required
+            type="text"
+            autoComplete="address-level2"
+            placeholder="Example: Markham"
+            value={formik.values.city}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            error={errorFor("city")}
+          />
+
+          <TextField
+            id="postalCode"
+            name="postalCode"
+            label="Postal code"
+            required
+            type="text"
+            autoComplete="postal-code"
+            placeholder="Example: M5V 2T6"
+            value={formik.values.postalCode}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            error={errorFor("postalCode")}
+          />
+
+          <div className="pt-2">
+            <h2 className="text-lg font-semibold mb-3">Emergency contact</h2>
+
+            <div className="flex items-center mb-4">
+              <input
+                id="sameAsParent"
+                name="sameAsParent"
+                type="checkbox"
+                checked={sameAsParent}
+                onChange={(e) => handleSameAsParentChange(e.target.checked)}
+                className="h-5 w-5 rounded border-gray-300 text-[#E43125] focus:ring-[#E43125]"
               />
-              {formik.touched.address && formik.errors.address && (
-                <div className="text-red-500 text-sm mt-1">
-                  {formik.errors.address}
-                </div>
-              )}
+              <label
+                htmlFor="sameAsParent"
+                className="ml-2 text-sm font-medium text-gray-800"
+              >
+                Same as parent/guardian
+              </label>
             </div>
 
-            {/* City and Postal Code */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <FloatingLabelInput
-                  id="city"
-                  name="city"
-                  label="City"
-                  type="text"
-                  value={formik.values.city}
-                  onChange={formik.handleChange}
-                  onFocus={() => handleFocus("city")}
-                  onBlur={() => handleBlur("city")}
-                  placeholder="Example: New York"
-                  isFocused={focused.city}
-                />
-                {formik.touched.city && formik.errors.city && (
-                  <div className="text-red-500 text-sm mt-1">
-                    {formik.errors.city}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <FloatingLabelInput
-                  id="postalCode"
-                  name="postalCode"
-                  label="Postal Code"
-                  type="text"
-                  value={formik.values.postalCode}
-                  onChange={formik.handleChange}
-                  onFocus={() => handleFocus("postalCode")}
-                  onBlur={() => handleBlur("postalCode")}
-                  placeholder="Example: 10001"
-                  isFocused={focused.postalCode}
-                />
-                {formik.touched.postalCode && formik.errors.postalCode && (
-                  <div className="text-red-500 text-sm mt-1">
-                    {formik.errors.postalCode}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Emergency Contact Information */}
-            <h2 className="text-lg font-semibold mt-4">Emergency Contact</h2>
-            
-            <div>
-              <FloatingLabelInput
+            <div className="grid grid-cols-1 gap-5">
+              <TextField
                 id="emergencyContactName"
                 name="emergencyContactName"
-                label="Emergency Contact Name"
+                label="Emergency contact name"
+                required
                 type="text"
+                placeholder="Example: John Doe"
                 value={formik.values.emergencyContactName}
                 onChange={formik.handleChange}
-                onFocus={() => handleFocus("emergencyContactName")}
-                onBlur={() => handleBlur("emergencyContactName")}
-                placeholder="Example: John Doe"
-                isFocused={focused.emergencyContactName}
+                onBlur={formik.handleBlur}
+                disabled={sameAsParent}
+                error={errorFor("emergencyContactName")}
               />
-              {formik.touched.emergencyContactName && formik.errors.emergencyContactName && (
-                <div className="text-red-500 text-sm mt-1">
-                  {formik.errors.emergencyContactName}
-                </div>
-              )}
-            </div>
 
-            <div>
-              <FloatingLabelInput
+              <TextField
                 id="emergencyPhone"
                 name="emergencyPhone"
-                label="Emergency Phone Number"
+                label="Emergency phone"
+                required
                 type="tel"
+                inputMode="tel"
+                placeholder="Example: 416 555 0123"
                 value={formik.values.emergencyPhone}
                 onChange={formik.handleChange}
-                onFocus={() => handleFocus("emergencyPhone")}
-                onBlur={() => handleBlur("emergencyPhone")}
-                placeholder="Example: +1-555-123-4567"
-                isFocused={focused.emergencyPhone}
+                onBlur={formik.handleBlur}
+                disabled={sameAsParent}
+                error={errorFor("emergencyPhone")}
               />
-              {formik.touched.emergencyPhone && formik.errors.emergencyPhone && (
-                <div className="text-red-500 text-sm mt-1">
-                  {formik.errors.emergencyPhone}
-                </div>
-              )}
             </div>
           </div>
+        </div>
 
-          {/* Next Button */}
-          <div className="mt-8">
-            <Button
-              type="submit"
-              className={`font-medium w-full py-3 rounded-md ${
-                !formik.isValid || formik.isSubmitting
-                  ? "bg-red-400 cursor-not-allowed"
-                  : "bg-primary hover:bg-[#c9281e] text-white"
-              }`}
-              disabled={!formik.isValid || formik.isSubmitting}
-            >
-              Next step
-            </Button>
-          </div>
-        </form>
-      </div>
-    </>
+        <div className="mt-8">
+          <Button
+            type="submit"
+            className={submitButtonClasses(formik.isSubmitting)}
+            disabled={formik.isSubmitting}
+          >
+            Next step
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 };
 
-export default AddressAndEmergencyForm;
+export default ParentAndContactForm;

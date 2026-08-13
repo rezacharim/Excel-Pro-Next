@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import AuthForm from "@/components/organisms/AuthForm/AuthForm";
 import RegisterForm from "@/components/organisms/RegisterContent/RegisterForm/RegisterForm";
+import { TOTAL_STEPS } from "@/components/organisms/RegisterContent/RegisterForm/data";
 import useUserFormStore from "@/stores/UserFormStore";
 import { useRegisterStepStore } from "@/stores/registerStepStore";
 import { useIsFirstRegister } from "@/stores/firstTimeRegister";
@@ -41,7 +42,7 @@ const Register = () => {
   useEffect(() => {
     const resetStaleStep = () => {
       const s = useRegisterStepStore.getState().step;
-      if (s < 1 || s > 5) useRegisterStepStore.getState().setStep(1);
+      if (s < 1 || s > TOTAL_STEPS) useRegisterStepStore.getState().setStep(1);
     };
     resetStaleStep();
     const persistApi = (

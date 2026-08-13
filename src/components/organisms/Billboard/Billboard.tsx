@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import RezaCard from "../../molecules/RezaCard/RezaCard";
+import HeroSideCard from "../../molecules/HeroSideCard/HeroSideCard";
 import IndicatorDots from "../../molecules/IndicatorDots/IndicatorDots";
 import ArrowButton from "../../atoms/ArrowButton/ArrowButton";
 import { usePlayers } from "@/context/PlayerContext/PlayerContext";
@@ -137,34 +137,28 @@ const Billboard = () => {
             </div>
           )}
         </div>
+        {/* Two equal cards beside the hero. They share HeroSideCard so their
+            heights and captions always match — previously the coach card's
+            white caption panel had its own height and collided with the
+            Player of the Month card below it. */}
         <div className="md:w-1/4 h-full flex flex-col gap-4 my-6 lg:my-0 md:my-0 sm:my-6">
-          {/* Coach card and Player of the Month share the column evenly. The
-              player photo gets a portrait shape because action shots are taken
-              upright — a short letterbox strip cut heads off. */}
-          <RezaCard />
+          <HeroSideCard
+            imageUrl="/images/person/reza-abedian.webp"
+            title="Reza Abedian"
+            subtitle="Owner & Head Coach"
+            alt="Reza Abedian, owner and head coach of Excel Pro Soccer Academy"
+            focus="center 20%"
+            href="/coaches"
+            priority
+          />
           {players.length > 0 && (
-            <a
+            <HeroSideCard
+              imageUrl={players[0].image_url}
+              title={players[0].player_name}
+              badge="Player of the Month"
+              alt={`${players[0].player_name} — Excel Pro player of the month`}
               href="/matchday"
-              className="relative rounded-lg shadow-xl overflow-hidden flex-1 min-h-[240px] group block bg-gray-900"
-              aria-label={`Player of the month: ${players[0].player_name}`}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={players[0].image_url}
-                alt={`${players[0].player_name} — Excel Pro player of the month`}
-                // Faces sit in the upper third of a standing photo, so anchor
-                // the crop there instead of the centre.
-                className="h-full w-full object-cover object-[center_25%] transition-transform duration-300 group-hover:scale-105"
-              />
-              <div className="absolute top-2 left-2 bg-primary text-white text-[11px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full shadow">
-                Player of the Month
-              </div>
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-3 pb-3 pt-10">
-                <p className="text-white text-sm font-semibold truncate">
-                  {players[0].player_name}
-                </p>
-              </div>
-            </a>
+            />
           )}
         </div>
       </div>

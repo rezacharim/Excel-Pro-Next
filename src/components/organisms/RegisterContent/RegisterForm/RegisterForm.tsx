@@ -1,17 +1,17 @@
 "use client";
 import { useRegisterStepStore } from "@/stores/registerStepStore";
 import Step from "@/components/atoms/Step/Step";
-import { steps } from "./data";
+import { steps, TOTAL_STEPS } from "./data";
 // import PaymentPage from "../../StripeElement/PaymentPage";
 import Etransfer from "../../Etransfer/Etransfer";
 
 const RegisterForm = () => {
   const { step } = useRegisterStepStore();
-  const currentStep = step < 1 || step > steps.length ? 1 : step;
+  const currentStep = step < 1 || step > TOTAL_STEPS ? 1 : step;
   const currentStepInfo = steps[currentStep - 1];
 
 
-  if (step > 5) {
+  if (step > TOTAL_STEPS) {
     return (
       <div className="my-12 flex items-center justify-center">
         <Etransfer />

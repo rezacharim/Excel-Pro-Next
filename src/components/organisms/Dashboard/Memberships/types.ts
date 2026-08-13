@@ -44,6 +44,8 @@ export interface MembershipRow {
   internalNote: string | null;
   /** Free-form on the wire; normalise before trusting it. */
   attendanceStatus: string;
+  /** Allergies / medical info a coach must know. Optional. */
+  medicalNotes: string | null;
   dateOfBirth: string | null;
 }
 
@@ -135,6 +137,7 @@ export interface SuspendDto {
 export interface UpdateNotesDto {
   internalNote?: string;
   attendanceStatus?: AttendanceStatus;
+  medicalNotes?: string;
 }
 
 /**

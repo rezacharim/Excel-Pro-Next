@@ -1,209 +1,141 @@
-import { useState } from "react";
-import { NextPage } from "next";
-import { Button } from "@/components/atoms/Button/Button";
-import { useRegisterStepStore } from "@/stores/registerStepStore";
-import FloatingLabelInput from "@/components/organisms/FloatingLabelInput/FloatingLabelInput";
-import useUserFormStore from "@/stores/UserFormStore";
-import { useFormik } from "formik";
-import * as Yup from "yup";
 import {
   PlayerPosition,
   ExperienceLevel,
 } from "@/stores/UserFormStore/enums/enums";
+import { TextField } from "./Fields";
 
-const validationSchema = Yup.object({
-  experienceLevel: Yup.string().required("Skill level is required"),
-  player_positions: Yup.string().required("Player position is required"),
-  custom_position: Yup.string().when("player_positions", {
-    is: PlayerPosition.OTHER,
-    then: (schema) => schema.required("Custom position is required"),
-    otherwise: (schema) => schema.optional(),
-  }),
-});
-
-const SoccerBackground: NextPage = () => {
-  const { setStep, step } = useRegisterStepStore();
-  const {
-    experienceLevel,
-    player_positions,
-    custom_position,
-    setExperienceLevel,
-    setPlayerPosition,
-    setCustomPosition,
-  } = useUserFormStore();
-
-  const [focused, setFocused] = useState({
-    custom_position: Boolean(custom_position),
-  });
-
-  const formik = useFormik({
-    initialValues: {
-      experienceLevel: experienceLevel || ExperienceLevel.BEGINNER,
-      player_positions: player_positions || "",
-      custom_position: custom_position || "",
-    },
-    validationSchema,
-    onSubmit: (values) => {
-      setExperienceLevel(values.experienceLevel as ExperienceLevel);
-      setPlayerPosition(values.player_positions as PlayerPosition);
-      if (values.player_positions === PlayerPosition.OTHER) {
-        setCustomPosition(values.custom_position);
-      }
-      setStep(step + 1);
-    },
-  });
-
-  const handleFocus = (field: string) => {
-    setFocused({
-      ...focused,
-      [field]: true,
-    });
+type SoccerBackgroundProps = {
+  experienceLevel: string;
+  playerPosition: string;
+  customPosition: string;
+  onChange: (
+    field: "experienceLevel" | "player_positions" | "custom_position",
+    value: string
+  ) => void;
+  errors?: {
+    experienceLevel?: string;
+    player_positions?: string;
+    custom_position?: string;
   };
+};
 
-  const handleBlur = (field: string) => {
-    formik.handleBlur({ target: { name: field } });
-    setFocused({
-      ...focused,
-      [field]: formik.values[field as keyof typeof formik.values] !== "",
-    });
-  };
+/**
+ * The soccer half of the final step. It is controlled by the parent step so the
+ * whole "Soccer & consent" page validates and submits as one form.
+ */
+const SoccerBackground = ({
+  experienceLevel,
+  playerPosition,
+  customPosition,
+  onChange,
+  errors = {},
+}: SoccerBackgroundProps) => {
+  const cardClasses = (selected: boolean) =>
+    `flex min-h-[44px] w-full items-center justify-center rounded-md border px-4 py-3 text-center text-sm cursor-pointer ${
+      selected
+        ? "border-[#E43125] bg-red-50 text-[#E43125] font-medium"
+        : "border-gray-300 hover:border-gray-400"
+    }`;
 
   return (
     <>
-      {/* Form Content */}
-      <div className="mb-8">
-        <h1 className="text-xl sm:text-2xl font-bold mb-4">
-          Player Skill Level and Positions
-        </h1>
-        <p className="text-gray-600 mb-4">
-          Please select your current skill level and the positions you are
-          playing right now.
-        </p>
-
-        <form onSubmit={formik.handleSubmit}>
-          <div className="mt-6 mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Current Skill Level
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {Object.values(ExperienceLevel).map((level) => (
-                <div key={level} className="relative">
-                  <input
-                    type="radio"
-                    id={`skill_${level}`}
-                    name="experienceLevel"
-                    value={level}
-                    checked={formik.values.experienceLevel === level}
-                    onChange={formik.handleChange}
-                    className="sr-only"
-                  />
-                  <label
-                    htmlFor={`skill_${level}`}
-                    className={`block w-full px-4 py-3 text-center rounded-md cursor-pointer border ${
-                      formik.values.experienceLevel === level
-                        ? "border-red-600 bg-red-50 text-red-600"
-                        : "border-gray-300 hover:border-gray-400"
-                    }`}
-                  >
-                    {level.charAt(0).toUpperCase() +
-                      level.slice(1).toLowerCase()}
-                  </label>
-                </div>
-              ))}
-            </div>
-            {formik.touched.experienceLevel &&
-              formik.errors.experienceLevel && (
-                <div className="text-red-500 text-sm mt-1">
-                  {formik.errors.experienceLevel}
-                </div>
-              )}
-          </div>
-
-          <div className="mt-6 mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Positions you are playing right now
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {Object.values(PlayerPosition).map((position) => (
-                <div key={position} className="relative">
-                  <input
-                    type="radio"
-                    id={`position_${position}`}
-                    name="player_positions"
-                    value={position}
-                    checked={formik.values.player_positions === position}
-                    onChange={formik.handleChange}
-                    className="sr-only"
-                  />
-                  <label
-                    htmlFor={`position_${position}`}
-                    className={`block w-full px-4 py-3 text-center rounded-md cursor-pointer border ${
-                      formik.values.player_positions === position
-                        ? "border-red-600 bg-red-50 text-red-600"
-                        : "border-gray-300 hover:border-gray-400"
-                    }`}
-                  >
-                    {position.charAt(0).toUpperCase() +
-                      position.slice(1).toLowerCase().replace("_", " ")}
-                  </label>
-                </div>
-              ))}
-            </div>
-            {formik.touched.player_positions &&
-              formik.errors.player_positions && (
-                <div className="text-red-500 text-sm mt-1">
-                  {formik.errors.player_positions}
-                </div>
-              )}
-          </div>
-
-          {formik.values.player_positions === PlayerPosition.OTHER && (
-            <div className="mt-4">
-              <FloatingLabelInput
-                id="custom_position"
-                name="custom_position"
-                label="Specify position"
-                type="text"
-                value={formik.values.custom_position}
-                onChange={formik.handleChange}
-                onFocus={() => handleFocus("custom_position")}
-                onBlur={() => handleBlur("custom_position")}
-                placeholder="Example: Sweeper, Wing Back, etc."
-                isFocused={focused.custom_position}
+      <fieldset className="mb-6">
+        <legend className="block text-sm font-medium text-gray-800 mb-2">
+          Experience level <span className="text-[#E43125]">*</span>
+        </legend>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {Object.values(ExperienceLevel).map((level) => (
+            <div key={level}>
+              <input
+                type="radio"
+                id={`skill_${level}`}
+                name="experienceLevel"
+                value={level}
+                checked={experienceLevel === level}
+                onChange={(e) => onChange("experienceLevel", e.target.value)}
+                aria-describedby={
+                  errors.experienceLevel ? "experienceLevel-error" : undefined
+                }
+                className="sr-only peer"
               />
-              {formik.touched.custom_position &&
-                formik.errors.custom_position && (
-                  <div className="text-red-500 text-sm mt-1">
-                    {formik.errors.custom_position}
-                  </div>
-                )}
+              <label
+                htmlFor={`skill_${level}`}
+                className={`${cardClasses(
+                  experienceLevel === level
+                )} peer-focus-visible:ring-2 peer-focus-visible:ring-[#E43125]/40`}
+              >
+                {level}
+              </label>
             </div>
-          )}
+          ))}
+        </div>
+        {errors.experienceLevel && (
+          <p
+            id="experienceLevel-error"
+            role="alert"
+            className="mt-1 text-sm text-red-600"
+          >
+            {errors.experienceLevel}
+          </p>
+        )}
+      </fieldset>
 
-          {/* Next Button */}
-          <div className="mt-8">
-            <Button
-              type="submit"
-              className={`font-medium w-full py-3 rounded-md ${
-                !formik.values.experienceLevel ||
-                !formik.values.player_positions ||
-                (formik.values.player_positions === PlayerPosition.OTHER &&
-                  !formik.values.custom_position)
-                  ? "bg-red-400 cursor-not-allowed"
-                  : "bg-primary hover:bg-[#c9281e] text-white"
-              }`}
-              disabled={
-                !formik.values.experienceLevel ||
-                !formik.values.player_positions ||
-                (formik.values.player_positions === PlayerPosition.OTHER &&
-                  !formik.values.custom_position)
-              }
-            >
-              Next step
-            </Button>
-          </div>
-        </form>
-      </div>
+      <fieldset className="mb-6">
+        <legend className="block text-sm font-medium text-gray-800 mb-2">
+          Preferred position <span className="text-[#E43125]">*</span>
+        </legend>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {Object.values(PlayerPosition).map((position) => (
+            <div key={position}>
+              <input
+                type="radio"
+                id={`position_${position}`}
+                name="player_positions"
+                value={position}
+                checked={playerPosition === position}
+                onChange={(e) => onChange("player_positions", e.target.value)}
+                aria-describedby={
+                  errors.player_positions ? "player_positions-error" : undefined
+                }
+                className="sr-only peer"
+              />
+              <label
+                htmlFor={`position_${position}`}
+                className={`${cardClasses(
+                  playerPosition === position
+                )} peer-focus-visible:ring-2 peer-focus-visible:ring-[#E43125]/40`}
+              >
+                {position}
+              </label>
+            </div>
+          ))}
+        </div>
+        {errors.player_positions && (
+          <p
+            id="player_positions-error"
+            role="alert"
+            className="mt-1 text-sm text-red-600"
+          >
+            {errors.player_positions}
+          </p>
+        )}
+      </fieldset>
+
+      {playerPosition === PlayerPosition.OTHER && (
+        <div className="mb-6">
+          <TextField
+            id="custom_position"
+            name="custom_position"
+            label="Which position?"
+            required
+            type="text"
+            placeholder="Example: Sweeper, Wing Back"
+            value={customPosition}
+            onChange={(e) => onChange("custom_position", e.target.value)}
+            error={errors.custom_position}
+          />
+        </div>
+      )}
     </>
   );
 };

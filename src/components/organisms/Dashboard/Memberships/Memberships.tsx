@@ -493,6 +493,7 @@ const Memberships: NextPage = () => {
   // freshly fetched row after any change instead of a stale snapshot.
   const [detailId, setDetailId] = useState<number | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
+  const [medicalDraft, setMedicalDraft] = useState("");
   const [attendanceDraft, setAttendanceDraft] =
     useState<AttendanceStatus>("attending");
   const [isSavingNotes, setIsSavingNotes] = useState(false);
@@ -1280,6 +1281,7 @@ const Memberships: NextPage = () => {
     closeRowMenu();
     setDetailId(row.id);
     setNoteDraft(row.internalNote || "");
+    setMedicalDraft(row.medicalNotes || "");
     setAttendanceDraft(attendanceOf(row));
     setContactLogs([]);
     setLogsError(null);
@@ -1341,6 +1343,7 @@ const Memberships: NextPage = () => {
       const body: UpdateNotesDto = {
         internalNote: noteDraft.trim(),
         attendanceStatus: attendanceDraft,
+        medicalNotes: medicalDraft.trim(),
       };
       const response = await fetch(`${API_URL}/membership/${row.id}/notes`, {
         method: "POST",
@@ -2256,11 +2259,40 @@ const Memberships: NextPage = () => {
                 )}
               </section>
 
+              {/* Medical information is safety-critical, so it gets its own
+                  highlighted block above the ordinary notes rather than being
+                  buried in a textarea the coach might not scroll to. */}
+              {detailRow.medicalNotes ? (
+                <section className="rounded-lg border border-amber-300 bg-amber-50 p-3">
+                  <h3 className="text-sm font-bold text-amber-900 flex items-center gap-2">
+                    <AlertTriangle size={16} />
+                    Medical / allergies
+                  </h3>
+                  <p className="mt-1 text-sm text-amber-900 whitespace-pre-wrap">
+                    {detailRow.medicalNotes}
+                  </p>
+                </section>
+              ) : null}
+
               {/* Notes & attendance */}
               <section>
                 <h3 className="text-sm font-semibold text-gray-800 mb-2">
                   Notes &amp; attendance
                 </h3>
+                <label
+                  htmlFor="player-medical-note"
+                  className="block text-sm text-gray-600 mb-1"
+                >
+                  Medical notes &amp; allergies
+                </label>
+                <textarea
+                  id="player-medical-note"
+                  rows={2}
+                  value={medicalDraft}
+                  onChange={(e) => setMedicalDraft(e.target.value)}
+                  placeholder="Allergies, asthma, medication, past injuries"
+                  className="w-full px-3 py-2 border border-amber-300 bg-amber-50/40 rounded-lg text-sm mb-4"
+                />
                 <label
                   htmlFor="player-internal-note"
                   className="block text-sm text-gray-600 mb-1"

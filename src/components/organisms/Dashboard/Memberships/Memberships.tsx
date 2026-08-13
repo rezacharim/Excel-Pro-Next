@@ -44,6 +44,9 @@ import {
   Gender,
   ImportResult,
   HoldDto,
+  InviteFamiliesDto,
+  InviteResult,
+  InvitedFilter,
   MembershipRow,
   PaymentMethod,
   PlanValue,
@@ -201,6 +204,12 @@ const ATTENDANCE_FILTER_OPTIONS: { value: AttendanceFilter; label: string }[] = 
   })),
 ];
 
+const INVITED_FILTER_OPTIONS: { value: InvitedFilter; label: string }[] = [
+  { value: "all", label: "Invited or not" },
+  { value: "invited", label: "Invited" },
+  { value: "not_invited", label: "Not invited" },
+];
+
 const SESSION_EXPIRED = "Your session expired — please sign in again.";
 
 const toNumber = (value: unknown): number => {
@@ -254,7 +263,7 @@ const MODAL_SUBMIT_LABEL: Record<ModalType, string> = {
   stop: "Stop membership",
   reactivate: "Reactivate",
   "set-plan": "Save program",
-  "set-renewal": "Save renewal date",
+  "set-renewal": "Edit membership period",
   suspend: "Suspend account",
   unsuspend: "Lift suspension",
 };
@@ -429,6 +438,72 @@ const renewalOutcomeText = (value: string): string | null => {
   } remaining`;
 };
 
+/** The same outcome, worded to sit at the end of a longer sentence. */
+const renewalOutcomeShort = (value: string): string | null => {
+  const days = daysFromToday(value);
+  if (days === null) return null;
+  if (days < 0) {
+    const late = Math.abs(days);
+    return `shows as ${late} day${late === 1 ? "" : "s"} overdue`;
+  }
+  if (days === 0) return "shows as due today";
+  return `shows as Active with ${days} day${days === 1 ? "" : "s"} remaining`;
+};
+
+/**
+ * Add whole months without ever spilling into the following month: 31 Jan
+ * plus one month is 28/29 Feb, not 2/3 March. Building the date from parts
+ * (rather than setMonth, which overflows) is what keeps that true.
+ */
+const addMonthsClamped = (date: Date, months: number): Date => {
+  const targetMonthStart = new Date(
+    date.getFullYear(),
+    date.getMonth() + months,
+    1
+  );
+  const lastDayOfTarget = new Date(
+    targetMonthStart.getFullYear(),
+    targetMonthStart.getMonth() + 1,
+    0
+  ).getDate();
+  return new Date(
+    targetMonthStart.getFullYear(),
+    targetMonthStart.getMonth(),
+    Math.min(date.getDate(), lastDayOfTarget)
+  );
+};
+
+/** The quick lengths a family normally pays for. */
+const PERIOD_PRESETS: { months: number; label: string }[] = [
+  { months: 1, label: "1 month" },
+  { months: 2, label: "2 months" },
+  { months: 3, label: "3 months" },
+  { months: 6, label: "6 months" },
+  { months: 12, label: "1 year" },
+];
+
+/**
+ * "2 months" when the two dates are exactly N months apart (including the
+ * clamped month-end case), otherwise a plain day count — so the preview never
+ * claims a tidy number of months that isn't true.
+ */
+const periodLengthText = (start: Date, end: Date): string => {
+  const days = Math.round((end.getTime() - start.getTime()) / 86400000);
+  if (days < 0) return "";
+  const months =
+    (end.getFullYear() - start.getFullYear()) * 12 +
+    (end.getMonth() - start.getMonth());
+  if (
+    months > 0 &&
+    addMonthsClamped(start, months).getTime() === end.getTime()
+  ) {
+    return months === 12
+      ? "1 year"
+      : `${months} month${months === 1 ? "" : "s"}`;
+  }
+  return `${days} day${days === 1 ? "" : "s"}`;
+};
+
 const Memberships: NextPage = () => {
   const [rows, setRows] = useState<MembershipRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -438,6 +513,7 @@ const Memberships: NextPage = () => {
   const [programFilter, setProgramFilter] = useState<ProgramFilter>("all");
   const [attendanceFilter, setAttendanceFilter] =
     useState<AttendanceFilter>("all");
+  const [invitedFilter, setInvitedFilter] = useState<InvitedFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("default");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
@@ -454,6 +530,18 @@ const Memberships: NextPage = () => {
   const [bulkModal, setBulkModal] = useState<BulkModalType | null>(null);
   const [bulkPlan, setBulkPlan] = useState<PlanValue>("U9_U12");
   const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
+
+  // Invite to sign up. `inviteIds` doubles as "is the dialog open"; it is a
+  // snapshot of who was chosen, so ticking rows behind the modal cannot change
+  // who gets emailed.
+  const [inviteIds, setInviteIds] = useState<number[] | null>(null);
+  const [inviteFromSelection, setInviteFromSelection] = useState(false);
+  const [inviteResend, setInviteResend] = useState(false);
+  const [isInviting, setIsInviting] = useState(false);
+  const [inviteResult, setInviteResult] = useState<InviteResult | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [isSkippedOpen, setIsSkippedOpen] = useState(false);
+  const [isFailedOpen, setIsFailedOpen] = useState(false);
 
   // Add player
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
@@ -476,6 +564,7 @@ const Memberships: NextPage = () => {
   const [paymentPaidAt, setPaymentPaidAt] = useState(todayInputValue);
   const [startFromPaymentDate, setStartFromPaymentDate] = useState(false);
   const [renewalDate, setRenewalDate] = useState("");
+  const [renewalStartDate, setRenewalStartDate] = useState("");
   const [renewalNote, setRenewalNote] = useState("");
   const [holdResumeAt, setHoldResumeAt] = useState("");
   const [holdNote, setHoldNote] = useState("");
@@ -618,6 +707,12 @@ const Memberships: NextPage = () => {
       result = result.filter((r) => attendanceOf(r) === attendanceFilter);
     }
 
+    if (invitedFilter !== "all") {
+      result = result.filter((r) =>
+        invitedFilter === "invited" ? !!r.invitedAt : !r.invitedAt
+      );
+    }
+
     const query = searchQuery.trim().toLowerCase();
     if (query) {
       result = result.filter(
@@ -665,6 +760,7 @@ const Memberships: NextPage = () => {
     statusFilter,
     programFilter,
     attendanceFilter,
+    invitedFilter,
     searchQuery,
     sortKey,
     sortDirection,
@@ -788,6 +884,9 @@ const Memberships: NextPage = () => {
     setRenewalDate(
       toDateInputValue(row.currentSubscriptionEndDate) || todayInputValue()
     );
+    // Left blank when the record has no start date — the owner may genuinely
+    // not know when the period began, and it stays optional.
+    setRenewalStartDate(toDateInputValue(row.currentSubscriptionStartDate));
     setRenewalNote("");
     setHoldResumeAt("");
     setHoldNote("");
@@ -936,6 +1035,111 @@ const Memberships: NextPage = () => {
   /** Only a real, back-dated payment can start a period in the past. */
   const isPaidAtInPast = paidAtDays !== null && paidAtDays < 0;
 
+  // Membership period editor state, recomputed on every keystroke.
+  const renewalStart = parseDateInput(renewalStartDate);
+  const renewalEnd = parseDateInput(renewalDate);
+  const isPeriodBackwards =
+    renewalStart !== null &&
+    renewalEnd !== null &&
+    renewalStart.getTime() > renewalEnd.getTime();
+  const canSaveRenewal = renewalEnd !== null && !isPeriodBackwards;
+
+  /** Quick length buttons count from "Paid from" when it is set, else today. */
+  const applyPeriodPreset = (months: number) => {
+    const base = parseDateInput(renewalStartDate) ?? new Date();
+    setRenewalDate(toDateInputValue(addMonthsClamped(base, months)));
+  };
+
+  /** The live preview sentence under the period fields. */
+  const renewalPreview = (): string => {
+    if (!renewalEnd) return "Choose a date to see what will happen.";
+    if (isPeriodBackwards) {
+      return "The period cannot start after it ends. Please check the dates.";
+    }
+    const outcome = renewalOutcomeShort(renewalDate);
+    if (!outcome) return "Choose a date to see what will happen.";
+    if (!renewalStart) {
+      return renewalOutcomeText(renewalDate) ?? "";
+    }
+    const length = periodLengthText(renewalStart, renewalEnd);
+    return `${formatInputDate(renewalStartDate)} → ${formatInputDate(
+      renewalDate
+    )}${length ? ` (${length})` : ""} · ${outcome}`;
+  };
+
+  /** Open the invite dialog for a snapshot of ids (one row, or the ticked set). */
+  const openInviteModal = (ids: number[], fromSelection: boolean) => {
+    if (ids.length === 0) return;
+    closeRowMenu();
+    setInviteIds(ids);
+    setInviteFromSelection(fromSelection);
+    setInviteResend(false);
+    setInviteResult(null);
+    setInviteError(null);
+    setIsSkippedOpen(false);
+    setIsFailedOpen(false);
+  };
+
+  const closeInviteModal = useCallback(() => {
+    if (isInviting) return;
+    setInviteIds(null);
+    setInviteResult(null);
+    setInviteError(null);
+  }, [isInviting]);
+
+  /** "Done" — the owner has read the result, so refresh what the list shows. */
+  const finishInvite = async () => {
+    const sentAny = toNumber(inviteResult?.sent) > 0;
+    setInviteIds(null);
+    setInviteResult(null);
+    setInviteError(null);
+    if (inviteFromSelection && sentAny) clearSelection();
+    await fetchOverview();
+  };
+
+  const sendInvites = async () => {
+    if (!inviteIds || inviteIds.length === 0) return;
+    try {
+      setIsInviting(true);
+      setInviteError(null);
+      const body: InviteFamiliesDto = {
+        userIds: inviteIds,
+        ...(inviteResend ? { resend: true } : {}),
+      };
+      const response = await fetch(`${API_URL}/membership/invite`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${savedToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        throw new Error(
+          await readErrorMessage(response, "Could not send the invitations.")
+        );
+      }
+      const data: InviteResult = await response.json();
+      // The result panel is the whole point of this dialog, so defend it
+      // against a response that arrives without the lists.
+      setInviteResult({
+        sent: toNumber(data?.sent),
+        skipped: Array.isArray(data?.skipped) ? data.skipped : [],
+        failed: Array.isArray(data?.failed) ? data.failed : [],
+      });
+      setIsSkippedOpen(false);
+      setIsFailedOpen(false);
+    } catch (error) {
+      setInviteError(
+        error instanceof Error
+          ? error.message
+          : "Could not send the invitations."
+      );
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
   const handleModalSubmit = async () => {
     if (!modal) return;
     const { type, row } = modal;
@@ -972,19 +1176,30 @@ const Memberships: NextPage = () => {
         break;
       }
       case "set-renewal": {
-        if (!parseDateInput(renewalDate)) {
-          showToast("error", "Please choose a renewal date");
+        if (!renewalEnd) {
+          showToast("error", "Please choose a paid until date");
+          return;
+        }
+        if (isPeriodBackwards) {
+          showToast(
+            "error",
+            "The period cannot start after it ends. Please check the dates."
+          );
           return;
         }
         const body: SetRenewalDateDto = {
           date: renewalDate,
+          ...(renewalStart ? { startDate: renewalStartDate } : {}),
           ...(renewalNote.trim() ? { note: renewalNote.trim() } : {}),
         };
+        const who = row.fullname || "player";
         await runAction(
           `${row.id}/set-renewal-date`,
-          `Renewal date set to ${formatInputDate(renewalDate)} for ${
-            row.fullname || "player"
-          }`,
+          renewalStart
+            ? `Membership period set to ${formatInputDate(
+                renewalStartDate
+              )} → ${formatInputDate(renewalDate)} for ${who}`
+            : `Paid until ${formatInputDate(renewalDate)} for ${who}`,
           body
         );
         break;
@@ -1298,18 +1513,28 @@ const Memberships: NextPage = () => {
   useEffect(() => {
     if (detailId === null) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !modal && !bulkModal && !isAddPlayerOpen) {
+      if (
+        event.key === "Escape" &&
+        !modal &&
+        !bulkModal &&
+        !isAddPlayerOpen &&
+        inviteIds === null
+      ) {
         closeDetail();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [detailId, modal, bulkModal, isAddPlayerOpen, closeDetail]);
+  }, [detailId, modal, bulkModal, isAddPlayerOpen, inviteIds, closeDetail]);
 
   // Escape closes whichever dialog is on top, as long as nothing is in flight.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      if (inviteIds !== null) {
+        closeInviteModal();
+        return;
+      }
       if (isAddPlayerOpen && !isCreatingPlayer) {
         closeAddPlayer();
         return;
@@ -1327,6 +1552,8 @@ const Memberships: NextPage = () => {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
+    inviteIds,
+    closeInviteModal,
     isAddPlayerOpen,
     isCreatingPlayer,
     closeAddPlayer,
@@ -1431,6 +1658,25 @@ const Memberships: NextPage = () => {
         {sent} reminder{sent === 1 ? "" : "s"}
         {last ? ` · last ${last}` : ""}
       </div>
+    );
+  };
+
+  /** Grey "Invited 12 Aug" chip, or nothing when no invitation went out. */
+  const renderInvitedChip = (row: MembershipRow) => {
+    if (!row.invitedAt) return null;
+    const when = formatShortDate(row.invitedAt);
+    return (
+      <span
+        className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[11px] font-medium"
+        title={
+          when
+            ? `Invitation emailed on ${formatDate(row.invitedAt)}`
+            : "Invitation emailed"
+        }
+      >
+        <Mail size={10} />
+        {when ? `Invited ${when}` : "Invited"}
+      </span>
     );
   };
 
@@ -1561,6 +1807,27 @@ const Memberships: NextPage = () => {
   const detailRow =
     detailId === null ? null : rows.find((r) => r.id === detailId) ?? null;
   const detailAge = detailRow ? calculateAge(detailRow.dateOfBirth) : null;
+
+  // Who the open invite dialog is about, read back from the live rows so the
+  // counts stay right after a refresh.
+  const inviteRows = useMemo(
+    () =>
+      inviteIds === null ? [] : rows.filter((row) => inviteIds.includes(row.id)),
+    [inviteIds, rows]
+  );
+  const inviteNoEmailCount = inviteRows.filter(
+    (row) => !(row.email || "").trim()
+  ).length;
+  const inviteAlreadyCount = inviteRows.filter(
+    (row) => (row.email || "").trim() && !!row.invitedAt
+  ).length;
+  /** Families that will actually receive an email with the current settings. */
+  const inviteEmailCount = Math.max(
+    0,
+    inviteRows.length -
+      inviteNoEmailCount -
+      (inviteResend ? 0 : inviteAlreadyCount)
+  );
 
   // Newest first, tolerating entries the API sent without a usable date.
   const sortedContactLogs = useMemo(
@@ -1771,6 +2038,26 @@ const Memberships: NextPage = () => {
             ))}
           </select>
         </div>
+        <div className="flex items-center gap-2">
+          <label
+            htmlFor="invited-filter"
+            className="text-sm text-gray-600 whitespace-nowrap"
+          >
+            Sign-up invite
+          </label>
+          <select
+            id="invited-filter"
+            value={invitedFilter}
+            onChange={(e) => setInvitedFilter(e.target.value as InvitedFilter)}
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+          >
+            {INVITED_FILTER_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
         {sortKey !== "default" && (
           <button
             onClick={() => {
@@ -1888,6 +2175,7 @@ const Memberships: NextPage = () => {
                                   ? `Parent: ${row.parent_name}`
                                   : row.email || "—"}
                               </div>
+                              {renderInvitedChip(row)}
                             </div>
                           </div>
                         </td>
@@ -1975,6 +2263,14 @@ const Memberships: NextPage = () => {
                 Clear selection
               </button>
               <button
+                onClick={() => openInviteModal(selectedIds, true)}
+                disabled={isBulkSubmitting}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20 transition-colors text-sm font-medium disabled:opacity-60"
+              >
+                <Send size={16} />
+                Invite to sign up
+              </button>
+              <button
                 onClick={() => {
                   setBulkPlan("U9_U12");
                   setBulkModal("set-plan");
@@ -2023,7 +2319,14 @@ const Memberships: NextPage = () => {
               className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
             >
               <CalendarClock size={16} className="text-teal-600" />
-              Set renewal date
+              Edit membership period
+            </button>
+            <button
+              onClick={() => openInviteModal([menuRow.id], false)}
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <Send size={16} className="text-blue-600" />
+              Invite to sign up
             </button>
             <button
               onClick={() => openModal("set-plan", menuRow)}
@@ -2199,12 +2502,25 @@ const Memberships: NextPage = () => {
                   Membership
                 </h3>
                 <dl className="space-y-2 text-sm">
-                  <div className="flex justify-between gap-3">
-                    <dt className="text-gray-500">Renewal</dt>
-                    <dd className="text-gray-800">
-                      {formatDate(detailRow.currentSubscriptionEndDate)}
-                    </dd>
-                  </div>
+                  {/* Once we know when the period started, the whole period is
+                      more useful to the owner than the end date alone. */}
+                  {formatDate(detailRow.currentSubscriptionStartDate) !== "—" ? (
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-gray-500">Paid period</dt>
+                      <dd className="text-gray-800 text-right">
+                        Paid from{" "}
+                        {formatDate(detailRow.currentSubscriptionStartDate)} to{" "}
+                        {formatDate(detailRow.currentSubscriptionEndDate)}
+                      </dd>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-gray-500">Renewal</dt>
+                      <dd className="text-gray-800">
+                        {formatDate(detailRow.currentSubscriptionEndDate)}
+                      </dd>
+                    </div>
+                  )}
                   <div className="flex justify-between gap-3">
                     <dt className="text-gray-500">Time left</dt>
                     <dd>{renderDaysRemaining(detailRow)}</dd>
@@ -2214,6 +2530,14 @@ const Memberships: NextPage = () => {
                     <dd className="text-gray-800">
                       {toNumber(detailRow.subscriptionCounter)} payment
                       {toNumber(detailRow.subscriptionCounter) === 1 ? "" : "s"}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-gray-500">Sign-up invite</dt>
+                    <dd className="text-gray-800">
+                      {formatDate(detailRow.invitedAt) !== "—"
+                        ? `Invited ${formatDate(detailRow.invitedAt)}`
+                        : "Not invited yet"}
                     </dd>
                   </div>
                 </dl>
@@ -2241,7 +2565,14 @@ const Memberships: NextPage = () => {
                   className="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
                 >
                   <CalendarClock size={16} className="text-teal-600" />
-                  Set renewal date
+                  Edit membership period
+                </button>
+                <button
+                  onClick={() => openInviteModal([detailRow.id], false)}
+                  className="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                >
+                  <Send size={16} className="text-blue-600" />
+                  Invite to sign up
                 </button>
                 {detailRow.overdue && (
                   <button
@@ -2412,7 +2743,12 @@ const Memberships: NextPage = () => {
             className="absolute inset-0 bg-black/50"
             onClick={closeModal}
           />
-          <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md p-5 md:p-6 max-h-[90vh] overflow-y-auto">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={MODAL_SUBMIT_LABEL[modal.type]}
+            className="relative bg-white rounded-lg shadow-xl w-full max-w-md p-5 md:p-6 max-h-[90vh] overflow-y-auto"
+          >
             <button
               onClick={closeModal}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
@@ -2711,7 +3047,9 @@ const Memberships: NextPage = () => {
 
             {modal.type === "set-renewal" && (
               <>
-                <h2 className="text-lg font-bold mb-1">Set renewal date</h2>
+                <h2 className="text-lg font-bold mb-1">
+                  Edit membership period
+                </h2>
                 <p className="text-gray-500 text-sm mb-4">
                   {modalRow.fullname || "Unknown player"}
                   {modalRow.parent_name
@@ -2721,15 +3059,37 @@ const Memberships: NextPage = () => {
                 <div className="space-y-4">
                   <p className="text-sm text-gray-600">
                     Use this when a family paid you by cash or e-transfer
-                    outside the dashboard. It only corrects their dates; it does
-                    not record money.
+                    outside the dashboard, or when their dates got mixed up. It
+                    only corrects their dates — it does not record money.
                   </p>
+                  <div>
+                    <label
+                      htmlFor="renewal-start-date"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Paid from (optional)
+                    </label>
+                    <input
+                      id="renewal-start-date"
+                      type="date"
+                      value={renewalStartDate}
+                      onChange={(e) => setRenewalStartDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      {formatDate(modalRow.currentSubscriptionStartDate) === "—"
+                        ? "Leave blank if you don't know when the period started."
+                        : `Currently ${formatDate(
+                            modalRow.currentSubscriptionStartDate
+                          )}.`}
+                    </p>
+                  </div>
                   <div>
                     <label
                       htmlFor="renewal-date"
                       className="block text-sm font-medium text-gray-700 mb-1"
                     >
-                      Paid up to (renewal date)
+                      Paid until (renewal date)
                     </label>
                     <input
                       id="renewal-date"
@@ -2746,6 +3106,42 @@ const Memberships: NextPage = () => {
                       .
                     </p>
                   </div>
+                  <fieldset>
+                    <legend className="block text-sm font-medium text-gray-700 mb-1">
+                      How long did they pay for?
+                    </legend>
+                    <div className="flex flex-wrap gap-2">
+                      {PERIOD_PRESETS.map((preset) => (
+                        <button
+                          key={preset.months}
+                          type="button"
+                          onClick={() => applyPeriodPreset(preset.months)}
+                          className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Sets &quot;Paid until&quot; from{" "}
+                      {renewalStart
+                        ? formatInputDate(renewalStartDate)
+                        : "today"}
+                      .
+                    </p>
+                  </fieldset>
+                  {isPeriodBackwards && (
+                    <div
+                      role="alert"
+                      className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+                    >
+                      <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                      <span>
+                        The period cannot start after it ends. Please check the
+                        dates.
+                      </span>
+                    </div>
+                  )}
                   <div>
                     <label
                       htmlFor="renewal-note"
@@ -2766,8 +3162,7 @@ const Memberships: NextPage = () => {
                     aria-live="polite"
                     className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700"
                   >
-                    {renewalOutcomeText(renewalDate) ??
-                      "Choose a date to see what will happen."}
+                    {renewalPreview()}
                   </div>
                 </div>
               </>
@@ -2892,8 +3287,11 @@ const Memberships: NextPage = () => {
               </button>
               <button
                 onClick={handleModalSubmit}
-                disabled={isSubmitting}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-60 bg-[#E43125] hover:bg-[#c9281e]"
+                disabled={
+                  isSubmitting ||
+                  (modal.type === "set-renewal" && !canSaveRenewal)
+                }
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed bg-[#E43125] hover:bg-[#c9281e]"
               >
                 {isSubmitting && <Loader2 className="animate-spin" size={16} />}
                 {MODAL_SUBMIT_LABEL[modal.type]}
@@ -3301,6 +3699,218 @@ const Memberships: NextPage = () => {
                 Done
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invite to sign up */}
+      {inviteIds !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={closeInviteModal}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Invite families to sign up"
+            className="relative bg-white rounded-lg shadow-xl w-full max-w-md p-5 md:p-6 max-h-[90vh] overflow-y-auto"
+          >
+            <button
+              onClick={closeInviteModal}
+              disabled={isInviting}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 disabled:opacity-60"
+              aria-label="Close"
+            >
+              <X size={20} />
+            </button>
+            <h2 className="text-lg font-bold mb-1 pr-8">Invite to sign up</h2>
+
+            {!inviteResult ? (
+              <>
+                <p className="text-gray-600 text-sm mb-4">
+                  We&apos;ll email each family a link to open their account.
+                  There&apos;s no password — they sign in with a 6-digit code
+                  sent to their email. Families with no email address on file
+                  are skipped.
+                </p>
+                <div
+                  aria-live="polite"
+                  className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800"
+                >
+                  <span className="font-medium">
+                    {inviteEmailCount} famil
+                    {inviteEmailCount === 1 ? "y" : "ies"} will be emailed
+                  </span>
+                  {inviteNoEmailCount > 0 && (
+                    <div className="text-gray-600 mt-1">
+                      {inviteRows.length === 1
+                        ? "This family has no email address on file, so nothing can be sent."
+                        : `${inviteNoEmailCount} of the ${
+                            inviteRows.length
+                          } chosen ${
+                            inviteNoEmailCount === 1 ? "has" : "have"
+                          } no email address on file and will be skipped.`}
+                    </div>
+                  )}
+                  {!inviteResend && inviteAlreadyCount > 0 && (
+                    <div className="text-gray-600 mt-1">
+                      {inviteAlreadyCount}{" "}
+                      {inviteAlreadyCount === 1 ? "was" : "were"} already
+                      invited and will be skipped — tick the box below to email
+                      them again.
+                    </div>
+                  )}
+                </div>
+
+                <label
+                  htmlFor="invite-resend"
+                  className="flex items-start gap-3 text-sm text-gray-800 mt-4"
+                >
+                  <input
+                    id="invite-resend"
+                    type="checkbox"
+                    checked={inviteResend}
+                    onChange={(e) => setInviteResend(e.target.checked)}
+                    disabled={isInviting}
+                    className="w-4 h-4 accent-[#E43125] mt-0.5"
+                  />
+                  <span className="font-medium">
+                    Send again to families already invited
+                  </span>
+                </label>
+
+                {inviteError && (
+                  <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                    <span>{inviteError}</span>
+                  </div>
+                )}
+
+                <div className="mt-6 flex justify-end gap-2">
+                  <button
+                    onClick={closeInviteModal}
+                    disabled={isInviting}
+                    className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={sendInvites}
+                    disabled={isInviting || inviteEmailCount === 0}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed bg-[#E43125] hover:bg-[#c9281e]"
+                  >
+                    {isInviting ? (
+                      <Loader2 className="animate-spin" size={16} />
+                    ) : (
+                      <Send size={16} />
+                    )}
+                    Send {inviteEmailCount} invitation
+                    {inviteEmailCount === 1 ? "" : "s"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* The result stays on screen until the owner presses Done — a
+                 toast would vanish before he could read the skipped names. */
+              <>
+                <div className="flex items-center gap-2 mt-2 mb-3">
+                  <CheckCircle2 className="text-green-600 shrink-0" size={20} />
+                  <p className="text-sm font-medium text-gray-900">
+                    Invitations sent to {inviteResult.sent} famil
+                    {inviteResult.sent === 1 ? "y" : "ies"}
+                  </p>
+                </div>
+
+                {inviteResult.skipped.length > 0 && (
+                  <div className="border border-gray-200 rounded-lg mb-3">
+                    <button
+                      onClick={() => setIsSkippedOpen((open) => !open)}
+                      aria-expanded={isSkippedOpen}
+                      className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 rounded-lg"
+                    >
+                      <span className="font-medium">
+                        {inviteResult.skipped.length} skipped
+                      </span>
+                      {isSkippedOpen ? (
+                        <ChevronUp size={16} />
+                      ) : (
+                        <ChevronDown size={16} />
+                      )}
+                    </button>
+                    {isSkippedOpen && (
+                      <ul className="border-t border-gray-200 px-3 py-2 space-y-2 text-sm">
+                        {inviteResult.skipped.map((item, index) => (
+                          <li
+                            key={`skipped-${index}-${item.fullname}`}
+                            className="flex flex-wrap justify-between gap-x-3"
+                          >
+                            <span className="text-gray-800 break-words">
+                              {item.fullname || "Unknown player"}
+                            </span>
+                            <span className="text-gray-500 break-words">
+                              {item.reason || "No reason given"}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                {inviteResult.failed.length > 0 && (
+                  <div className="border border-red-200 rounded-lg mb-3">
+                    <button
+                      onClick={() => setIsFailedOpen((open) => !open)}
+                      aria-expanded={isFailedOpen}
+                      className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-red-700 hover:bg-red-50 rounded-lg"
+                    >
+                      <span className="font-medium">
+                        {inviteResult.failed.length} could not be emailed
+                      </span>
+                      {isFailedOpen ? (
+                        <ChevronUp size={16} />
+                      ) : (
+                        <ChevronDown size={16} />
+                      )}
+                    </button>
+                    {isFailedOpen && (
+                      <ul className="border-t border-red-200 px-3 py-2 space-y-2 text-sm">
+                        {inviteResult.failed.map((item, index) => (
+                          <li
+                            key={`failed-${index}-${item.fullname}`}
+                            className="flex flex-wrap justify-between gap-x-3"
+                          >
+                            <span className="text-gray-800 break-words">
+                              {item.fullname || "Unknown player"}
+                            </span>
+                            <span className="text-red-600 break-words">
+                              {item.reason || "No reason given"}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                {inviteResult.skipped.length === 0 &&
+                  inviteResult.failed.length === 0 && (
+                    <p className="text-sm text-gray-500">
+                      Every family you chose was emailed.
+                    </p>
+                  )}
+
+                <div className="mt-6 flex justify-end">
+                  <button
+                    onClick={finishInvite}
+                    className="px-4 py-2 rounded-lg bg-[#E43125] hover:bg-[#c9281e] text-white text-sm font-medium"
+                  >
+                    Done
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

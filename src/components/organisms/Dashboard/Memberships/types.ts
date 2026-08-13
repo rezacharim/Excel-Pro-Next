@@ -31,7 +31,11 @@ export interface MembershipRow {
   phone_number: string;
   activePlan: string;
   membershipStatus: MembershipStatus;
+  /** When the current paid period began. Null for records kept on paper. */
+  currentSubscriptionStartDate: string | null;
   currentSubscriptionEndDate: string | null;
+  /** When this family was last emailed an invitation to open their account. */
+  invitedAt: string | null;
   daysRemaining: number | null;
   overdue: boolean;
   holdResumeAt: string | null;
@@ -96,9 +100,31 @@ export interface BulkMembershipResult {
 
 /** Body of POST /membership/:userId/set-renewal-date */
 export interface SetRenewalDateDto {
-  /** "YYYY-MM-DD" */
+  /** End of the paid period, "YYYY-MM-DD". */
   date: string;
+  /** Optional start of the paid period, "YYYY-MM-DD". */
+  startDate?: string;
   note?: string;
+}
+
+/** Body of POST /membership/invite */
+export interface InviteFamiliesDto {
+  userIds: number[];
+  /** Email families that were already invited once before. */
+  resend?: boolean;
+}
+
+/** One family the invite run could not email, with the server's wording. */
+export interface InviteOutcome {
+  fullname: string;
+  reason: string;
+}
+
+/** Response of POST /membership/invite */
+export interface InviteResult {
+  sent: number;
+  skipped: InviteOutcome[];
+  failed: InviteOutcome[];
 }
 
 /** Body of POST /membership/players */
@@ -163,6 +189,9 @@ export type ProgramFilter =
   | "not_set";
 
 export type AttendanceFilter = "all" | AttendanceStatus;
+
+/** Has this family already been emailed an invitation? */
+export type InvitedFilter = "all" | "invited" | "not_invited";
 
 /** "default" keeps the server's overdue-first ordering. */
 export type SortKey =

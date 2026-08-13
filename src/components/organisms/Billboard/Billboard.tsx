@@ -113,13 +113,10 @@ const Billboard = () => {
                 className="h-full w-full object-cover"
                 loading={index === 0 ? "eager" : "lazy"}
               />
-              {slide.title ? (
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-6 pb-4 pt-12">
-                  <p className="text-white text-sm md:text-base font-medium">
-                    {slide.title}
-                  </p>
-                </div>
-              ) : null}
+              {/* No caption is drawn over hero photos. Gallery titles are
+                  filenames like "excel-pro image 1", which looked like a
+                  mistake on the front page. The title still serves as the
+                  image's alt text for search engines and screen readers. */}
             </div>
           ))}
 

@@ -139,6 +139,10 @@ const Collections: NextPage = () => {
 
   const savedToken = Cookies.get("auth_token");
 
+  // Master switch for the daily automatic reminder emails.
+  const [remindersPaused, setRemindersPaused] = useState<boolean | null>(null);
+  const [isTogglingReminders, setIsTogglingReminders] = useState(false);
+
   const showToast = useCallback((kind: "success" | "error", message: string) => {
     setToast({ kind, message });
   }, []);
@@ -200,6 +204,53 @@ const Collections: NextPage = () => {
       setIsLoading(false);
     }
   }, [savedToken]);
+
+  useEffect(() => {
+    // Read the current pause state so the banner always reflects reality.
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/settings`, {
+          headers: { Authorization: `Bearer ${savedToken}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setRemindersPaused(Boolean(data.remindersPaused));
+      } catch {
+        // A settings failure must not stop the collections list loading.
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const toggleReminders = async (paused: boolean) => {
+    setIsTogglingReminders(true);
+    try {
+      const res = await fetch(`${API_URL}/settings`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${savedToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ remindersPaused: paused }),
+      });
+      if (!res.ok) throw new Error("Could not change the setting");
+      const data = await res.json();
+      setRemindersPaused(Boolean(data.remindersPaused));
+      showToast(
+        "success",
+        paused
+          ? "Automatic reminder emails are paused"
+          : "Automatic reminder emails are switched on"
+      );
+    } catch (error) {
+      showToast(
+        "error",
+        error instanceof Error ? error.message : "Could not change the setting"
+      );
+    } finally {
+      setIsTogglingReminders(false);
+    }
+  };
 
   useEffect(() => {
     fetchCollections();
@@ -581,6 +632,55 @@ const Collections: NextPage = () => {
 
   return (
     <div className="p-4 md:p-6 bg-white min-h-screen rounded-lg">
+      {/* Automatic-email status. Shown before anything else because sending
+          reminders against half-corrected records is the costly mistake. */}
+      {remindersPaused !== null && (
+        <div
+          className={`mb-5 rounded-lg border p-4 flex flex-col sm:flex-row sm:items-center gap-3 ${
+            remindersPaused
+              ? "border-amber-300 bg-amber-50"
+              : "border-green-300 bg-green-50"
+          }`}
+        >
+          <div className="flex-1">
+            <p
+              className={`text-sm font-semibold ${
+                remindersPaused ? "text-amber-900" : "text-green-900"
+              }`}
+            >
+              {remindersPaused
+                ? "Automatic reminder emails are PAUSED"
+                : "Automatic reminder emails are ON"}
+            </p>
+            <p
+              className={`text-xs mt-1 ${
+                remindersPaused ? "text-amber-800" : "text-green-800"
+              }`}
+            >
+              {remindersPaused
+                ? "No family is emailed automatically. Sign-in codes, payment instructions and receipts still work, and you can still send a reminder by hand below. Switch this on once your member list is correct."
+                : "Families are emailed automatically before their renewal date and when a payment is late."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => toggleReminders(!remindersPaused)}
+            disabled={isTogglingReminders}
+            className={`shrink-0 px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-60 ${
+              remindersPaused
+                ? "bg-green-600 hover:bg-green-700"
+                : "bg-amber-600 hover:bg-amber-700"
+            }`}
+          >
+            {isTogglingReminders
+              ? "Saving..."
+              : remindersPaused
+              ? "Switch reminders on"
+              : "Pause reminders"}
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex flex-col">

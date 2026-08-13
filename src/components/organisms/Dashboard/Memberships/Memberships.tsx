@@ -6,6 +6,7 @@ import Cookies from "js-cookie";
 import {
   AlertTriangle,
   Ban,
+  CalendarClock,
   CalendarPlus,
   CheckCircle2,
   ChevronDown,
@@ -24,6 +25,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Upload,
+  UserPlus,
   Users,
   Wallet,
   X,
@@ -33,15 +35,22 @@ import {
   ATTENDANCE_STATUSES,
   AttendanceFilter,
   AttendanceStatus,
+  BulkMembershipDto,
+  BulkMembershipResult,
   ContactLogEntry,
+  CreatePlayerDto,
   ExtendDto,
+  GENDER_OPTIONS,
+  Gender,
   ImportResult,
   HoldDto,
   MembershipRow,
   PaymentMethod,
+  PlanValue,
   ProgramFilter,
   RecordPaymentDto,
   SendReminderResult,
+  SetRenewalDateDto,
   SortDirection,
   SortKey,
   StatusFilter,
@@ -61,16 +70,20 @@ type ModalType =
   | "stop"
   | "reactivate"
   | "set-plan"
+  | "set-renewal"
   | "suspend"
   | "unsuspend";
 
+/** Which bulk confirmation is on screen, if any. */
+type BulkModalType = "stop" | "set-plan";
+
 /** The four real programs a player can belong to. */
-export const PLAN_OPTIONS = [
+export const PLAN_OPTIONS: { value: PlanValue; label: string }[] = [
   { value: "U5_U8", label: "U5–U8" },
   { value: "U9_U12", label: "U9–U12" },
   { value: "U13_U14", label: "U13–U14" },
   { value: "U15_U18", label: "U15–U18" },
-] as const;
+];
 
 /**
  * Friendly name for a stored plan value. Players who signed up without
@@ -241,6 +254,7 @@ const MODAL_SUBMIT_LABEL: Record<ModalType, string> = {
   stop: "Stop membership",
   reactivate: "Reactivate",
   "set-plan": "Save program",
+  "set-renewal": "Save renewal date",
   suspend: "Suspend account",
   unsuspend: "Lift suspension",
 };
@@ -269,6 +283,50 @@ const formatDate = (iso: string | null): string => {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
+
+/**
+ * Date inputs speak "YYYY-MM-DD" in the browser's own timezone. Building the
+ * string by hand (rather than via toISOString) keeps "today" as the owner's
+ * today — toISOString would roll over to tomorrow after 5pm in Toronto.
+ */
+const toDateInputValue = (value: Date | string | null): string => {
+  if (!value) return "";
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return "";
+  const month = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
+  return `${d.getFullYear()}-${month}-${day}`;
+};
+
+const todayInputValue = (): string => toDateInputValue(new Date());
+
+/** Read a "YYYY-MM-DD" input value back as a local date, or null if unusable. */
+const parseDateInput = (value: string): Date | null => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  if (isNaN(date.getTime())) return null;
+  return date;
+};
+
+/** Whole calendar days from today to a "YYYY-MM-DD" value; null if unusable. */
+const daysFromToday = (value: string): number | null => {
+  const target = parseDateInput(value);
+  if (!target) return null;
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((target.getTime() - startOfToday.getTime()) / 86400000);
+};
+
+const formatInputDate = (value: string): string => {
+  const parsed = parseDateInput(value);
+  if (!parsed) return "—";
+  return parsed.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -327,8 +385,23 @@ const renewalTime = (iso: string | null): number | null => {
   return isNaN(time) ? null : time;
 };
 
-/** New end date after recording a payment: max(today, current end) + 2 months */
-const computeNewEndDate = (currentEnd: string | null): Date => {
+/**
+ * New end date after recording a payment: max(today, current end) + 2 months.
+ * When the owner is catching up on an old payment they can ask for the period
+ * to start at the payment date instead, which is the only case where the new
+ * end date can land in the past.
+ */
+const computeNewEndDate = (
+  currentEnd: string | null,
+  options?: { paidAt?: string; startFromPaymentDate?: boolean }
+): Date | null => {
+  const paidAtDate = options?.paidAt ? parseDateInput(options.paidAt) : null;
+  if (options?.startFromPaymentDate) {
+    if (!paidAtDate) return null;
+    const fromPayment = new Date(paidAtDate);
+    fromPayment.setMonth(fromPayment.getMonth() + 2);
+    return fromPayment;
+  }
   const today = new Date();
   let base = today;
   if (currentEnd) {
@@ -340,6 +413,20 @@ const computeNewEndDate = (currentEnd: string | null): Date => {
   const result = new Date(base);
   result.setMonth(result.getMonth() + 2);
   return result;
+};
+
+/** Plain-language preview of what a renewal date will look like on the list. */
+const renewalOutcomeText = (value: string): string | null => {
+  const days = daysFromToday(value);
+  if (days === null) return null;
+  if (days < 0) {
+    const late = Math.abs(days);
+    return `This player will show as ${late} day${late === 1 ? "" : "s"} overdue`;
+  }
+  if (days === 0) return "This player will show as due today";
+  return `This player will show as Active with ${days} day${
+    days === 1 ? "" : "s"
+  } remaining`;
 };
 
 const Memberships: NextPage = () => {
@@ -362,10 +449,34 @@ const Memberships: NextPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
 
+  // Tick-box selection for the bulk actions bar.
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkModal, setBulkModal] = useState<BulkModalType | null>(null);
+  const [bulkPlan, setBulkPlan] = useState<PlanValue>("U9_U12");
+  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
+
+  // Add player
+  const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
+  const [isCreatingPlayer, setIsCreatingPlayer] = useState(false);
+  const [addPlayerError, setAddPlayerError] = useState<string | null>(null);
+  const [newFullname, setNewFullname] = useState("");
+  const [newParentName, setNewParentName] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPlan, setNewPlan] = useState<PlanValue>("U9_U12");
+  const [newPaidUpTo, setNewPaidUpTo] = useState("");
+  const [newDateOfBirth, setNewDateOfBirth] = useState("");
+  const [newGender, setNewGender] = useState<Gender | "">("");
+  const [newInternalNote, setNewInternalNote] = useState("");
+
   // Modal form fields
   const [paymentAmount, setPaymentAmount] = useState("380");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("etransfer");
   const [paymentNote, setPaymentNote] = useState("");
+  const [paymentPaidAt, setPaymentPaidAt] = useState(todayInputValue);
+  const [startFromPaymentDate, setStartFromPaymentDate] = useState(false);
+  const [renewalDate, setRenewalDate] = useState("");
+  const [renewalNote, setRenewalNote] = useState("");
   const [holdResumeAt, setHoldResumeAt] = useState("");
   const [holdNote, setHoldNote] = useState("");
   const [extendDays, setExtendDays] = useState("30");
@@ -422,7 +533,13 @@ const Memberships: NextPage = () => {
         throw new Error("Failed to fetch membership overview");
       }
       const data: MembershipRow[] = await response.json();
-      setRows(data);
+      const list = Array.isArray(data) ? data : [];
+      setRows(list);
+      // Drop ticks for players who are no longer in the list, so a stale id
+      // can never be submitted with a bulk action.
+      setSelectedIds((previous) =>
+        previous.filter((id) => list.some((row) => row.id === id))
+      );
     } catch (error) {
       console.error("Error fetching memberships:", error);
       setLoadError("Failed to load memberships. Please try again.");
@@ -567,6 +684,90 @@ const Memberships: NextPage = () => {
     setSortDirection("asc");
   };
 
+  const isSelected = (id: number) => selectedIds.includes(id);
+
+  const toggleRowSelection = (id: number) => {
+    setSelectedIds((previous) =>
+      previous.includes(id)
+        ? previous.filter((existing) => existing !== id)
+        : [...previous, id]
+    );
+  };
+
+  const allFilteredSelected =
+    filteredRows.length > 0 &&
+    filteredRows.every((row) => selectedIds.includes(row.id));
+
+  /** Header tick box acts on the rows the owner can currently see only. */
+  const toggleSelectAllFiltered = () => {
+    const filteredIds = filteredRows.map((row) => row.id);
+    setSelectedIds((previous) =>
+      allFilteredSelected
+        ? previous.filter((id) => !filteredIds.includes(id))
+        : Array.from(new Set([...previous, ...filteredIds]))
+    );
+  };
+
+  const clearSelection = () => setSelectedIds([]);
+
+  const closeBulkModal = () => {
+    if (isBulkSubmitting) return;
+    setBulkModal(null);
+  };
+
+  const runBulkAction = async (body: BulkMembershipDto, doneLabel: string) => {
+    if (body.userIds.length === 0) return;
+    try {
+      setIsBulkSubmitting(true);
+      const response = await fetch(`${API_URL}/membership/bulk`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${savedToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        throw new Error(
+          await readErrorMessage(response, "Could not update those players.")
+        );
+      }
+      const result: BulkMembershipResult = await response.json();
+      const updated = toNumber(result?.updated);
+      const failed = Array.isArray(result?.failed) ? result.failed.length : 0;
+      showToast(
+        failed > 0 ? "error" : "success",
+        `${updated} player${updated === 1 ? "" : "s"} ${doneLabel}${
+          failed > 0 ? ` (${failed} could not be updated)` : ""
+        }`
+      );
+      setBulkModal(null);
+      clearSelection();
+      await fetchOverview();
+    } catch (error) {
+      showToast(
+        "error",
+        error instanceof Error
+          ? error.message
+          : "Could not update those players."
+      );
+    } finally {
+      setIsBulkSubmitting(false);
+    }
+  };
+
+  const submitBulkStop = () =>
+    runBulkAction(
+      { userIds: selectedIds, action: "stop" },
+      "marked as no longer members"
+    );
+
+  const submitBulkSetPlan = () =>
+    runBulkAction(
+      { userIds: selectedIds, action: "set-plan", plan: bulkPlan },
+      `moved to ${planLabel(bulkPlan)}`
+    );
+
   const closeModal = () => {
     if (isSubmitting) return;
     setModal(null);
@@ -579,6 +780,14 @@ const Memberships: NextPage = () => {
     setPaymentAmount("380");
     setPaymentMethod("etransfer");
     setPaymentNote("");
+    setPaymentPaidAt(todayInputValue());
+    setStartFromPaymentDate(false);
+    // Correcting a date starts from what the player already has; a player with
+    // no renewal date yet starts from today rather than an empty box.
+    setRenewalDate(
+      toDateInputValue(row.currentSubscriptionEndDate) || todayInputValue()
+    );
+    setRenewalNote("");
     setHoldResumeAt("");
     setHoldNote("");
     setExtendDays("30");
@@ -603,7 +812,8 @@ const Memberships: NextPage = () => {
   /** Work out where the menu should sit, given its trigger button. */
   const positionFor = (button: HTMLElement) => {
     const rect = button.getBoundingClientRect();
-    const MENU_HEIGHT = 240;
+    // Roughly the tallest the menu gets; used only to decide up vs down.
+    const MENU_HEIGHT = 280;
     const spaceBelow = window.innerHeight - rect.bottom;
     const openUpwards = spaceBelow < MENU_HEIGHT && rect.top > spaceBelow;
     const top = openUpwards
@@ -663,7 +873,13 @@ const Memberships: NextPage = () => {
 
   const postAction = async (
     path: string,
-    body?: RecordPaymentDto | HoldDto | ExtendDto | { plan: string } | SuspendDto
+    body?:
+      | RecordPaymentDto
+      | HoldDto
+      | ExtendDto
+      | { plan: string }
+      | SuspendDto
+      | SetRenewalDateDto
   ): Promise<void> => {
     const response = await fetch(`${API_URL}/membership/${path}`, {
       method: "POST",
@@ -690,7 +906,13 @@ const Memberships: NextPage = () => {
   const runAction = async (
     path: string,
     successMessage: string,
-    body?: RecordPaymentDto | HoldDto | ExtendDto | { plan: string } | SuspendDto
+    body?:
+      | RecordPaymentDto
+      | HoldDto
+      | ExtendDto
+      | { plan: string }
+      | SuspendDto
+      | SetRenewalDateDto
   ) => {
     try {
       setIsSubmitting(true);
@@ -708,6 +930,11 @@ const Memberships: NextPage = () => {
     }
   };
 
+  const paidAtDays = daysFromToday(paymentPaidAt);
+  const isPaidAtInFuture = paidAtDays !== null && paidAtDays > 0;
+  /** Only a real, back-dated payment can start a period in the past. */
+  const isPaidAtInPast = paidAtDays !== null && paidAtDays < 0;
+
   const handleModalSubmit = async () => {
     if (!modal) return;
     const { type, row } = modal;
@@ -719,14 +946,44 @@ const Memberships: NextPage = () => {
           showToast("error", "Please enter a valid amount");
           return;
         }
+        if (!parseDateInput(paymentPaidAt)) {
+          showToast("error", "Please choose the date the money arrived");
+          return;
+        }
+        if (isPaidAtInFuture) {
+          showToast("error", "The payment date cannot be in the future");
+          return;
+        }
         const body: RecordPaymentDto = {
           amount,
           method: paymentMethod,
+          paidAt: paymentPaidAt,
+          // Only meaningful for a back-dated payment, and the tick box is
+          // hidden for today's date, so never send a stale "true".
+          startFromPaymentDate: isPaidAtInPast && startFromPaymentDate,
           ...(paymentNote.trim() ? { note: paymentNote.trim() } : {}),
         };
         await runAction(
           `${row.id}/record-payment`,
           `Payment recorded for ${row.fullname}`,
+          body
+        );
+        break;
+      }
+      case "set-renewal": {
+        if (!parseDateInput(renewalDate)) {
+          showToast("error", "Please choose a renewal date");
+          return;
+        }
+        const body: SetRenewalDateDto = {
+          date: renewalDate,
+          ...(renewalNote.trim() ? { note: renewalNote.trim() } : {}),
+        };
+        await runAction(
+          `${row.id}/set-renewal-date`,
+          `Renewal date set to ${formatInputDate(renewalDate)} for ${
+            row.fullname || "player"
+          }`,
           body
         );
         break;
@@ -908,6 +1165,80 @@ const Memberships: NextPage = () => {
     }
   };
 
+  const openAddPlayer = () => {
+    setAddPlayerError(null);
+    setNewFullname("");
+    setNewParentName("");
+    setNewPhone("");
+    setNewEmail("");
+    setNewPlan("U9_U12");
+    setNewPaidUpTo("");
+    setNewDateOfBirth("");
+    setNewGender("");
+    setNewInternalNote("");
+    setIsAddPlayerOpen(true);
+  };
+
+  const closeAddPlayer = useCallback(() => {
+    setIsAddPlayerOpen(false);
+    setAddPlayerError(null);
+  }, []);
+
+  const canSubmitNewPlayer =
+    newFullname.trim().length > 0 &&
+    newParentName.trim().length > 0 &&
+    newPhone.trim().length > 0;
+
+  const createPlayer = async () => {
+    if (!canSubmitNewPlayer) return;
+    const name = newFullname.trim();
+    try {
+      setIsCreatingPlayer(true);
+      setAddPlayerError(null);
+      const body: CreatePlayerDto = {
+        fullname: name,
+        parent_name: newParentName.trim(),
+        phone_number: newPhone.trim(),
+        activePlan: newPlan,
+        ...(newEmail.trim() ? { email: newEmail.trim() } : {}),
+        ...(parseDateInput(newPaidUpTo)
+          ? { currentSubscriptionEndDate: newPaidUpTo }
+          : {}),
+        ...(parseDateInput(newDateOfBirth)
+          ? { dateOfBirth: newDateOfBirth }
+          : {}),
+        ...(newGender ? { gender: newGender } : {}),
+        ...(newInternalNote.trim()
+          ? { internalNote: newInternalNote.trim() }
+          : {}),
+      };
+      const response = await fetch(`${API_URL}/membership/players`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${savedToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        // A duplicate belongs next to the form the owner is still looking at,
+        // not in a toast that disappears.
+        throw new Error(
+          await readErrorMessage(response, "Could not add this player.")
+        );
+      }
+      setIsAddPlayerOpen(false);
+      showToast("success", `${name} added`);
+      await fetchOverview();
+    } catch (error) {
+      setAddPlayerError(
+        error instanceof Error ? error.message : "Could not add this player."
+      );
+    } finally {
+      setIsCreatingPlayer(false);
+    }
+  };
+
   const fetchContactLog = useCallback(
     async (userId: number) => {
       try {
@@ -965,11 +1296,44 @@ const Memberships: NextPage = () => {
   useEffect(() => {
     if (detailId === null) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !modal) closeDetail();
+      if (event.key === "Escape" && !modal && !bulkModal && !isAddPlayerOpen) {
+        closeDetail();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [detailId, modal, closeDetail]);
+  }, [detailId, modal, bulkModal, isAddPlayerOpen, closeDetail]);
+
+  // Escape closes whichever dialog is on top, as long as nothing is in flight.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (isAddPlayerOpen && !isCreatingPlayer) {
+        closeAddPlayer();
+        return;
+      }
+      if (importResult) {
+        setImportResult(null);
+        return;
+      }
+      if (modal && !isSubmitting) {
+        setModal(null);
+        return;
+      }
+      if (bulkModal && !isBulkSubmitting) setBulkModal(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    isAddPlayerOpen,
+    isCreatingPlayer,
+    closeAddPlayer,
+    importResult,
+    modal,
+    isSubmitting,
+    bulkModal,
+    isBulkSubmitting,
+  ]);
 
   const saveNotes = async (row: MembershipRow) => {
     try {
@@ -1274,6 +1638,13 @@ const Memberships: NextPage = () => {
             Import from Excel
           </button>
           <button
+            onClick={openAddPlayer}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#E43125] text-white rounded-lg hover:bg-[#c9281e] transition-colors text-sm font-medium"
+          >
+            <UserPlus size={16} />
+            Add player
+          </button>
+          <button
             onClick={exportEmails}
             disabled={isExporting}
             className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#E43125] text-white rounded-lg hover:bg-[#c9281e] transition-colors text-sm font-medium disabled:opacity-60"
@@ -1410,8 +1781,13 @@ const Memberships: NextPage = () => {
         )}
       </div>
 
-      {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+      {/* Table. The extra bottom padding keeps the last row's actions clear of
+          the sticky bulk bar while a selection is active. */}
+      <div
+        className={`bg-white border border-gray-200 rounded-lg overflow-hidden ${
+          selectedIds.length > 0 ? "pb-20 md:pb-16" : ""
+        }`}
+      >
         {isLoading ? (
           <div className="flex justify-center items-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -1438,6 +1814,16 @@ const Memberships: NextPage = () => {
               <table className="w-full min-w-full">
                 <thead className="bg-white">
                   <tr className="border-b border-gray-200">
+                    <th className="py-4 pl-4 pr-2 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allFilteredSelected}
+                        onChange={toggleSelectAllFiltered}
+                        disabled={filteredRows.length === 0}
+                        className="w-4 h-4 accent-[#E43125] align-middle"
+                        aria-label="Select all players in this list"
+                      />
+                    </th>
                     {sortableHeader("player", "Player")}
                     {sortableHeader("plan", "Plan")}
                     {sortableHeader("status", "Status")}
@@ -1454,11 +1840,24 @@ const Memberships: NextPage = () => {
                       <tr
                         key={row.id}
                         className={`border-b border-gray-200 ${
-                          row.overdue
+                          isSelected(row.id)
+                            ? "bg-red-50"
+                            : row.overdue
                             ? "bg-red-50 hover:bg-red-100/60"
                             : "hover:bg-gray-50"
                         }`}
                       >
+                        <td className="py-4 pl-4 pr-2">
+                          <input
+                            type="checkbox"
+                            checked={isSelected(row.id)}
+                            onChange={() => toggleRowSelection(row.id)}
+                            className="w-4 h-4 accent-[#E43125] align-middle"
+                            aria-label={`Select ${
+                              row.fullname || "this player"
+                            }`}
+                          />
+                        </td>
                         <td className="py-4 px-6 whitespace-nowrap">
                           <div className="flex items-center">
                             <div
@@ -1539,7 +1938,7 @@ const Memberships: NextPage = () => {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-gray-500">
+                      <td colSpan={7} className="py-12 text-center text-gray-500">
                         {rows.length === 0
                           ? "No memberships found"
                           : "No memberships match your filters"}
@@ -1555,6 +1954,46 @@ const Memberships: NextPage = () => {
           </>
         )}
       </div>
+
+      {/* Bulk action bar — sticks to the bottom so the buttons stay in reach
+          while scrolling a long list. */}
+      {selectedIds.length > 0 && (
+        <div className="sticky bottom-4 z-30 mt-4">
+          <div className="bg-gray-900 text-white rounded-lg shadow-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <span className="text-sm font-medium">
+              {selectedIds.length} selected
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={clearSelection}
+                disabled={isBulkSubmitting}
+                className="px-3 py-2 rounded-lg text-sm text-white/80 hover:text-white disabled:opacity-60"
+              >
+                Clear selection
+              </button>
+              <button
+                onClick={() => {
+                  setBulkPlan("U9_U12");
+                  setBulkModal("set-plan");
+                }}
+                disabled={isBulkSubmitting}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20 transition-colors text-sm font-medium disabled:opacity-60"
+              >
+                <Users size={16} />
+                Move to program…
+              </button>
+              <button
+                onClick={() => setBulkModal("stop")}
+                disabled={isBulkSubmitting}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[#E43125] text-white rounded-lg hover:bg-[#c9281e] transition-colors text-sm font-medium disabled:opacity-60"
+              >
+                <Ban size={16} />
+                Mark as no longer a member
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Row actions menu — rendered outside the table so it can never be
           clipped by the table's scroll area (previously the actions for the
@@ -1576,6 +2015,13 @@ const Memberships: NextPage = () => {
                 Record payment
               </button>
             )}
+            <button
+              onClick={() => openModal("set-renewal", menuRow)}
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <CalendarClock size={16} className="text-teal-600" />
+              Set renewal date
+            </button>
             <button
               onClick={() => openModal("set-plan", menuRow)}
               className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
@@ -1787,6 +2233,13 @@ const Memberships: NextPage = () => {
                     )}
                   </div>
                 )}
+                <button
+                  onClick={() => openModal("set-renewal", detailRow)}
+                  className="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                >
+                  <CalendarClock size={16} className="text-teal-600" />
+                  Set renewal date
+                </button>
                 {detailRow.overdue && (
                   <button
                     onClick={() => sendPaymentReminder(detailRow)}
@@ -1945,10 +2398,14 @@ const Memberships: NextPage = () => {
                 </p>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label
+                      htmlFor="payment-amount"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
                       Amount
                     </label>
                     <input
+                      id="payment-amount"
                       type="number"
                       min="0"
                       step="0.01"
@@ -1958,10 +2415,14 @@ const Memberships: NextPage = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label
+                      htmlFor="payment-method"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
                       Method
                     </label>
                     <select
+                      id="payment-method"
                       value={paymentMethod}
                       onChange={(e) =>
                         setPaymentMethod(e.target.value as PaymentMethod)
@@ -1974,10 +2435,70 @@ const Memberships: NextPage = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label
+                      htmlFor="payment-paid-at"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Date received
+                    </label>
+                    <input
+                      id="payment-paid-at"
+                      type="date"
+                      value={paymentPaidAt}
+                      max={todayInputValue()}
+                      onChange={(e) => {
+                        setPaymentPaidAt(e.target.value);
+                        // Today's payment has nothing to catch up on, so the
+                        // tick box disappears — clear it rather than leave it
+                        // set behind the scenes.
+                        const days = daysFromToday(e.target.value);
+                        if (days === null || days >= 0) {
+                          setStartFromPaymentDate(false);
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Set this to the day the money actually arrived so it
+                      counts in the right month on the Money screen.
+                    </p>
+                    {isPaidAtInFuture && (
+                      <p className="text-xs text-[#E43125] mt-1">
+                        Please pick today or an earlier date.
+                      </p>
+                    )}
+                  </div>
+                  {isPaidAtInPast && (
+                    <div>
+                      <label
+                        htmlFor="payment-start-from"
+                        className="flex items-start gap-3 text-sm text-gray-800"
+                      >
+                        <input
+                          id="payment-start-from"
+                          type="checkbox"
+                          checked={startFromPaymentDate}
+                          onChange={(e) =>
+                            setStartFromPaymentDate(e.target.checked)
+                          }
+                          className="w-4 h-4 accent-[#E43125] mt-0.5"
+                        />
+                        <span className="font-medium">
+                          Start the membership period from this date (use for
+                          catching up on old payments)
+                        </span>
+                      </label>
+                    </div>
+                  )}
+                  <div>
+                    <label
+                      htmlFor="payment-note"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
                       Note (optional)
                     </label>
                     <input
+                      id="payment-note"
                       type="text"
                       value={paymentNote}
                       onChange={(e) => setPaymentNote(e.target.value)}
@@ -1986,17 +2507,32 @@ const Memberships: NextPage = () => {
                     />
                   </div>
                   <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700">
-                    New end date:{" "}
-                    <span className="font-medium">
-                      {computeNewEndDate(
-                        modalRow.currentSubscriptionEndDate
-                      ).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </span>{" "}
-                    <span className="text-gray-500">(+2 months)</span>
+                    {(() => {
+                      const newEnd = computeNewEndDate(
+                        modalRow.currentSubscriptionEndDate,
+                        {
+                          paidAt: paymentPaidAt,
+                          startFromPaymentDate:
+                            isPaidAtInPast && startFromPaymentDate,
+                        }
+                      );
+                      if (!newEnd) {
+                        return "Choose a date received to see the new end date.";
+                      }
+                      return (
+                        <>
+                          New end date:{" "}
+                          <span className="font-medium">
+                            {newEnd.toLocaleDateString("en-US", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </span>{" "}
+                          <span className="text-gray-500">(+2 months)</span>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               </>
@@ -2141,6 +2677,70 @@ const Memberships: NextPage = () => {
               </>
             )}
 
+            {modal.type === "set-renewal" && (
+              <>
+                <h2 className="text-lg font-bold mb-1">Set renewal date</h2>
+                <p className="text-gray-500 text-sm mb-4">
+                  {modalRow.fullname || "Unknown player"}
+                  {modalRow.parent_name
+                    ? ` · Parent: ${modalRow.parent_name}`
+                    : ""}
+                </p>
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600">
+                    Use this when a family paid you by cash or e-transfer
+                    outside the dashboard. It only corrects their dates; it does
+                    not record money.
+                  </p>
+                  <div>
+                    <label
+                      htmlFor="renewal-date"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Paid up to (renewal date)
+                    </label>
+                    <input
+                      id="renewal-date"
+                      type="date"
+                      value={renewalDate}
+                      onChange={(e) => setRenewalDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Currently{" "}
+                      {formatDate(modalRow.currentSubscriptionEndDate) === "—"
+                        ? "not set"
+                        : formatDate(modalRow.currentSubscriptionEndDate)}
+                      .
+                    </p>
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="renewal-note"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Note (optional)
+                    </label>
+                    <input
+                      id="renewal-note"
+                      type="text"
+                      value={renewalNote}
+                      onChange={(e) => setRenewalNote(e.target.value)}
+                      placeholder="e.g. paid $380 cash at practice"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div
+                    aria-live="polite"
+                    className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700"
+                  >
+                    {renewalOutcomeText(renewalDate) ??
+                      "Choose a date to see what will happen."}
+                  </div>
+                </div>
+              </>
+            )}
+
             {modal.type === "suspend" && (
               <>
                 <h2 className="text-lg font-bold mb-1">Suspend account</h2>
@@ -2265,6 +2865,326 @@ const Memberships: NextPage = () => {
               >
                 {isSubmitting && <Loader2 className="animate-spin" size={16} />}
                 {MODAL_SUBMIT_LABEL[modal.type]}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk action modals */}
+      {bulkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={closeBulkModal} />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={
+              bulkModal === "stop"
+                ? "Mark players as no longer members"
+                : "Move players to a program"
+            }
+            className="relative bg-white rounded-lg shadow-xl w-full max-w-md p-5 md:p-6 max-h-[90vh] overflow-y-auto"
+          >
+            <button
+              onClick={closeBulkModal}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+              aria-label="Close"
+            >
+              <X size={20} />
+            </button>
+
+            {bulkModal === "stop" ? (
+              <>
+                <h2 className="text-lg font-bold mb-2">
+                  Mark {selectedIds.length} player
+                  {selectedIds.length === 1 ? "" : "s"} as no longer a member?
+                </h2>
+                <p className="text-gray-600 text-sm">
+                  This keeps their record and payment history but removes them
+                  from your active lists, stops all reminder emails, and takes
+                  them out of Collections. You can bring them back any time with
+                  Reactivate.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-lg font-bold mb-2">Move to program</h2>
+                <p className="text-gray-600 text-sm mb-4">
+                  {selectedIds.length} selected player
+                  {selectedIds.length === 1 ? "" : "s"} will be moved to the
+                  program you choose.
+                </p>
+                <div className="space-y-2">
+                  {PLAN_OPTIONS.map((option) => (
+                    <label
+                      key={option.value}
+                      className={`flex items-center gap-3 px-4 py-3 border rounded-lg cursor-pointer text-sm ${
+                        bulkPlan === option.value
+                          ? "border-[#E43125] bg-red-50"
+                          : "border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="bulk-program"
+                        value={option.value}
+                        checked={bulkPlan === option.value}
+                        onChange={() => setBulkPlan(option.value)}
+                        className="accent-[#E43125]"
+                      />
+                      <span className="font-medium text-gray-800">
+                        {option.label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                onClick={closeBulkModal}
+                disabled={isBulkSubmitting}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={
+                  bulkModal === "stop" ? submitBulkStop : submitBulkSetPlan
+                }
+                disabled={isBulkSubmitting}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-60 bg-[#E43125] hover:bg-[#c9281e]"
+              >
+                {isBulkSubmitting && (
+                  <Loader2 className="animate-spin" size={16} />
+                )}
+                {bulkModal === "stop"
+                  ? "Yes, mark as no longer members"
+                  : `Move to ${planLabel(bulkPlan)}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add player modal */}
+      {isAddPlayerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={closeAddPlayer} />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Add a player"
+            className="relative bg-white rounded-lg shadow-xl w-full max-w-lg p-5 md:p-6 max-h-[90vh] overflow-y-auto"
+          >
+            <button
+              onClick={closeAddPlayer}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+              aria-label="Close"
+            >
+              <X size={20} />
+            </button>
+            <h2 className="text-lg font-bold mb-1">Add player</h2>
+            <p className="text-gray-500 text-sm mb-4">
+              For a player who was never entered in the system. Fields marked
+              with * are required.
+            </p>
+
+            {addPlayerError && (
+              <div className="mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                <span>{addPlayerError}</span>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label
+                  htmlFor="new-player-name"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Player name *
+                </label>
+                <input
+                  id="new-player-name"
+                  type="text"
+                  value={newFullname}
+                  onChange={(e) => setNewFullname(e.target.value)}
+                  placeholder="e.g. Sam Ahmadi"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="new-parent-name"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Parent name *
+                </label>
+                <input
+                  id="new-parent-name"
+                  type="text"
+                  value={newParentName}
+                  onChange={(e) => setNewParentName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="new-phone"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Phone *
+                </label>
+                <input
+                  id="new-phone"
+                  type="tel"
+                  value={newPhone}
+                  onChange={(e) => setNewPhone(e.target.value)}
+                  placeholder="e.g. 416-555-0134"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="new-email"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Email
+                </label>
+                <input
+                  id="new-email"
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                />
+              </div>
+
+              <fieldset>
+                <legend className="block text-sm font-medium text-gray-700 mb-1">
+                  Program *
+                </legend>
+                <div className="space-y-2">
+                  {PLAN_OPTIONS.map((option) => (
+                    <label
+                      key={option.value}
+                      className={`flex items-center gap-3 px-4 py-3 border rounded-lg cursor-pointer text-sm ${
+                        newPlan === option.value
+                          ? "border-[#E43125] bg-red-50"
+                          : "border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="new-player-program"
+                        value={option.value}
+                        checked={newPlan === option.value}
+                        onChange={() => setNewPlan(option.value)}
+                        className="accent-[#E43125]"
+                      />
+                      <span className="font-medium text-gray-800">
+                        {option.label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              <div>
+                <label
+                  htmlFor="new-paid-up-to"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Paid up to
+                </label>
+                <input
+                  id="new-paid-up-to"
+                  type="date"
+                  value={newPaidUpTo}
+                  onChange={(e) => setNewPaidUpTo(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Leave blank if they have not paid yet.
+                </p>
+              </div>
+              <div>
+                <label
+                  htmlFor="new-date-of-birth"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Date of birth
+                </label>
+                <input
+                  id="new-date-of-birth"
+                  type="date"
+                  value={newDateOfBirth}
+                  max={todayInputValue()}
+                  onChange={(e) => setNewDateOfBirth(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="new-gender"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Gender
+                </label>
+                <select
+                  id="new-gender"
+                  value={newGender}
+                  onChange={(e) => setNewGender(e.target.value as Gender | "")}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                >
+                  <option value="">Not given</option>
+                  {GENDER_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label
+                  htmlFor="new-internal-note"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Private note
+                </label>
+                <textarea
+                  id="new-internal-note"
+                  rows={3}
+                  value={newInternalNote}
+                  onChange={(e) => setNewInternalNote(e.target.value)}
+                  placeholder="Anything the staff should know"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Only you and your staff see this.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                onClick={closeAddPlayer}
+                disabled={isCreatingPlayer}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={createPlayer}
+                disabled={!canSubmitNewPlayer || isCreatingPlayer}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed bg-[#E43125] hover:bg-[#c9281e]"
+              >
+                {isCreatingPlayer && (
+                  <Loader2 className="animate-spin" size={16} />
+                )}
+                Add player
               </button>
             </div>
           </div>

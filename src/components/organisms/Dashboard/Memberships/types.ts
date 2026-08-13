@@ -53,6 +53,65 @@ export interface RecordPaymentDto {
   amount?: number;
   method?: PaymentMethod;
   note?: string;
+  /** The day the money actually arrived, "YYYY-MM-DD". */
+  paidAt?: string;
+  /**
+   * Start the new period at the payment date instead of extending the
+   * current end date — used when catching up on an old payment.
+   */
+  startFromPaymentDate?: boolean;
+}
+
+/** The four real programs a player can belong to. */
+export type PlanValue = "U5_U8" | "U9_U12" | "U13_U14" | "U15_U18";
+
+export const GENDER_OPTIONS = ["Male", "Female", "Prefer not to say"] as const;
+
+export type Gender = (typeof GENDER_OPTIONS)[number];
+
+/** Actions POST /membership/bulk accepts. */
+export type BulkAction = "stop" | "reactivate" | "suspend" | "set-plan";
+
+/** Body of POST /membership/bulk */
+export interface BulkMembershipDto {
+  userIds: number[];
+  action: BulkAction;
+  reason?: string;
+  plan?: string;
+  note?: string;
+}
+
+export interface BulkFailure {
+  userId: number;
+  reason: string;
+}
+
+/** Response of POST /membership/bulk */
+export interface BulkMembershipResult {
+  updated: number;
+  failed: BulkFailure[];
+}
+
+/** Body of POST /membership/:userId/set-renewal-date */
+export interface SetRenewalDateDto {
+  /** "YYYY-MM-DD" */
+  date: string;
+  note?: string;
+}
+
+/** Body of POST /membership/players */
+export interface CreatePlayerDto {
+  fullname: string;
+  parent_name: string;
+  phone_number: string;
+  email?: string;
+  activePlan: PlanValue;
+  /** "YYYY-MM-DD" */
+  currentSubscriptionEndDate?: string;
+  /** "YYYY-MM-DD" */
+  dateOfBirth?: string;
+  gender?: Gender;
+  internalNote?: string;
 }
 
 export interface HoldDto {

@@ -138,23 +138,28 @@ const Billboard = () => {
           )}
         </div>
         <div className="md:w-1/4 h-full flex flex-col gap-4 my-6 lg:my-0 md:my-0 sm:my-6">
+          {/* Coach card and Player of the Month share the column evenly. The
+              player photo gets a portrait shape because action shots are taken
+              upright — a short letterbox strip cut heads off. */}
           <RezaCard />
           {players.length > 0 && (
             <a
               href="/matchday"
-              className="relative rounded-lg shadow-xl overflow-hidden h-[150px] shrink-0 group block"
+              className="relative rounded-lg shadow-xl overflow-hidden flex-1 min-h-[240px] group block bg-gray-900"
               aria-label={`Player of the month: ${players[0].player_name}`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={players[0].image_url}
                 alt={`${players[0].player_name} — Excel Pro player of the month`}
-                className="h-full w-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
+                // Faces sit in the upper third of a standing photo, so anchor
+                // the crop there instead of the centre.
+                className="h-full w-full object-cover object-[center_25%] transition-transform duration-300 group-hover:scale-105"
               />
               <div className="absolute top-2 left-2 bg-primary text-white text-[11px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full shadow">
                 Player of the Month
               </div>
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-3 pb-2 pt-8">
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-3 pb-3 pt-10">
                 <p className="text-white text-sm font-semibold truncate">
                   {players[0].player_name}
                 </p>

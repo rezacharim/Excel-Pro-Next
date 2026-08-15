@@ -395,20 +395,27 @@ const renewalTime = (iso: string | null): number | null => {
 };
 
 /**
- * New end date after recording a payment: max(today, current end) + 2 months.
+ * New end date after recording a payment: max(today, current end) + the
+ * number of months the payment covers (2 by default, but a sibling or monthly
+ * plan buys a different length).
  * When the owner is catching up on an old payment they can ask for the period
  * to start at the payment date instead, which is the only case where the new
  * end date can land in the past.
  */
 const computeNewEndDate = (
   currentEnd: string | null,
-  options?: { paidAt?: string; startFromPaymentDate?: boolean }
+  options?: {
+    paidAt?: string;
+    startFromPaymentDate?: boolean;
+    months?: number;
+  }
 ): Date | null => {
+  const months = options?.months && options.months > 0 ? options.months : 2;
   const paidAtDate = options?.paidAt ? parseDateInput(options.paidAt) : null;
   if (options?.startFromPaymentDate) {
     if (!paidAtDate) return null;
     const fromPayment = new Date(paidAtDate);
-    fromPayment.setMonth(fromPayment.getMonth() + 2);
+    fromPayment.setMonth(fromPayment.getMonth() + months);
     return fromPayment;
   }
   const today = new Date();
@@ -420,7 +427,7 @@ const computeNewEndDate = (
     }
   }
   const result = new Date(base);
-  result.setMonth(result.getMonth() + 2);
+  result.setMonth(result.getMonth() + months);
   return result;
 };
 
@@ -559,6 +566,7 @@ const Memberships: NextPage = () => {
 
   // Modal form fields
   const [paymentAmount, setPaymentAmount] = useState("380");
+  const [paymentMonths, setPaymentMonths] = useState("2");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("etransfer");
   const [paymentNote, setPaymentNote] = useState("");
   const [paymentPaidAt, setPaymentPaidAt] = useState(todayInputValue);
@@ -1159,8 +1167,14 @@ const Memberships: NextPage = () => {
           showToast("error", "The payment date cannot be in the future");
           return;
         }
+        const months = parseInt(paymentMonths, 10);
+        if (isNaN(months) || months < 1) {
+          showToast("error", "Please choose how many months this payment covers");
+          return;
+        }
         const body: RecordPaymentDto = {
           amount,
+          months,
           method: paymentMethod,
           paidAt: paymentPaidAt,
           // Only meaningful for a back-dated payment, and the tick box is
@@ -2765,23 +2779,54 @@ const Memberships: NextPage = () => {
                   {modalRow.parent_name ? ` · Parent: ${modalRow.parent_name}` : ""}
                 </p>
                 <div className="space-y-4">
-                  <div>
-                    <label
-                      htmlFor="payment-amount"
-                      className="block text-sm font-medium text-gray-700 mb-1"
-                    >
-                      Amount
-                    </label>
-                    <input
-                      id="payment-amount"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={paymentAmount}
-                      onChange={(e) => setPaymentAmount(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                    />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label
+                        htmlFor="payment-amount"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Amount
+                      </label>
+                      <input
+                        id="payment-amount"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={paymentAmount}
+                        onChange={(e) => setPaymentAmount(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="payment-months"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Covers
+                      </label>
+                      <select
+                        id="payment-months"
+                        value={paymentMonths}
+                        onChange={(e) => setPaymentMonths(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                      >
+                        <option value="1">1 month</option>
+                        <option value="2">2 months (standard)</option>
+                        <option value="3">3 months</option>
+                        <option value="6">6 months</option>
+                        <option value="12">1 year</option>
+                      </select>
+                    </div>
                   </div>
+                  {paymentMonths !== "2" && (
+                    <p className="-mt-2 text-xs text-gray-500">
+                      The membership will be extended by{" "}
+                      <strong>
+                        {paymentMonths} month{paymentMonths === "1" ? "" : "s"}
+                      </strong>
+                      , not the usual 2.
+                    </p>
+                  )}
                   <div>
                     <label
                       htmlFor="payment-method"
@@ -2880,6 +2925,7 @@ const Memberships: NextPage = () => {
                         modalRow.currentSubscriptionEndDate,
                         {
                           paidAt: paymentPaidAt,
+                          months: parseInt(paymentMonths, 10) || 2,
                           startFromPaymentDate:
                             isPaidAtInPast && startFromPaymentDate,
                         }

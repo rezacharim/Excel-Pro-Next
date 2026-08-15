@@ -58,6 +58,13 @@ export type PaymentMethod = "etransfer" | "cash" | "other";
 export interface RecordPaymentDto {
   amount?: number;
   method?: PaymentMethod;
+  /**
+   * How many months this payment buys. Defaults to 2 on the server, which
+   * matches the standard $380 / 2-month fee — but a sibling or monthly plan
+   * pays a different amount for a different length of time, and the two must
+   * not drift apart.
+   */
+  months?: number;
   note?: string;
   /** The day the money actually arrived, "YYYY-MM-DD". */
   paidAt?: string;

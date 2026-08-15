@@ -567,6 +567,7 @@ const Memberships: NextPage = () => {
   // Modal form fields
   const [paymentAmount, setPaymentAmount] = useState("380");
   const [paymentMonths, setPaymentMonths] = useState("2");
+  const [paymentPeriodLabel, setPaymentPeriodLabel] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("etransfer");
   const [paymentNote, setPaymentNote] = useState("");
   const [paymentPaidAt, setPaymentPaidAt] = useState(todayInputValue);
@@ -1180,6 +1181,9 @@ const Memberships: NextPage = () => {
           // Only meaningful for a back-dated payment, and the tick box is
           // hidden for today's date, so never send a stale "true".
           startFromPaymentDate: isPaidAtInPast && startFromPaymentDate,
+          ...(paymentPeriodLabel.trim()
+            ? { periodLabel: paymentPeriodLabel.trim() }
+            : {}),
           ...(paymentNote.trim() ? { note: paymentNote.trim() } : {}),
         };
         await runAction(
@@ -2903,6 +2907,28 @@ const Memberships: NextPage = () => {
                       </label>
                     </div>
                   )}
+                  <div>
+                    <label
+                      htmlFor="payment-period-label"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Shown on the receipt email (optional)
+                    </label>
+                    <input
+                      id="payment-period-label"
+                      type="text"
+                      value={paymentPeriodLabel}
+                      onChange={(e) => setPaymentPeriodLabel(e.target.value)}
+                      placeholder="e.g. Sibling rate - $370 total for both children"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      The parent&apos;s receipt says &ldquo;we have received your
+                      payment of ${paymentAmount || "0"}&rdquo;. Add a line here
+                      when that figure needs explaining &mdash; for example when
+                      one family payment is split between two children.
+                    </p>
+                  </div>
                   <div>
                     <label
                       htmlFor="payment-note"

@@ -65,6 +65,13 @@ export interface RecordPaymentDto {
    * not drift apart.
    */
   months?: number;
+  /**
+   * Short line shown to the parent in the receipt email, e.g.
+   * "Sep-Oct 2026" or "Sibling rate - $370 total for both children".
+   * Without it the email states only the amount, which reads oddly when one
+   * family payment is split across two children.
+   */
+  periodLabel?: string;
   note?: string;
   /** The day the money actually arrived, "YYYY-MM-DD". */
   paidAt?: string;

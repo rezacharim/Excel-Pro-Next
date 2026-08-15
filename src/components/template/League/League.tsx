@@ -91,6 +91,14 @@ const Field = ({
   </label>
 );
 
+/** Wording is decided by the API; only the colour lives here. */
+const TONE: Record<string, string> = {
+  ok: "text-green-700",
+  medium: "text-amber-600",
+  low: "text-[#E43125]",
+  full: "text-gray-500",
+};
+
 const inputClass =
   "w-full rounded-lg border border-gray-300 px-3 py-2.5 text-[15px] outline-none transition focus:border-[#E43125] focus:ring-1 focus:ring-[#E43125]";
 
@@ -179,7 +187,8 @@ const League = () => {
                   {money(season.feeTotal)}
                 </p>
                 <p className="text-sm text-white/80">
-                  {money(season.feeLate)} after {shortDate(season.firstPaymentDue)}
+                  {money(season.feeLate)} after{" "}
+                  {shortDate(season.lateFeeFrom ?? season.firstPaymentDue)}
                 </p>
               </div>
             </div>
@@ -190,6 +199,13 @@ const League = () => {
               ⏳ <strong>{daysLeft} day{daysLeft === 1 ? "" : "s"}</strong> left
               to register at {money(season!.feeTotal)} — after that the fee is{" "}
               {money(season!.feeLate)}.
+              {season!.recentSignups > 0 && (
+                <span className="ml-1 text-gray-300">
+                  {season!.recentSignups} famil
+                  {season!.recentSignups === 1 ? "y" : "ies"} registered this
+                  week.
+                </span>
+              )}
             </p>
           )}
         </div>
@@ -216,41 +232,31 @@ const League = () => {
         )}
 
         {/* ------------------------------------------------ spots per group */}
-        {season && (
+        {season && season.ageGroups.some((g) => g.show) && (
           <div className="mb-12">
             <h2 className="mb-4 text-xl font-bold text-[#020022]">
-              Spots remaining
+              Age groups
             </h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {season.ageGroups.map((g) => {
-                const full = g.spotsLeft === 0;
-                const low = !full && g.spotsLeft <= 4;
-                return (
-                  <div
-                    key={g.ageGroup}
-                    className={`rounded-xl border bg-white p-4 text-center ${
-                      full ? "border-gray-200 opacity-60" : "border-gray-200"
-                    }`}
-                  >
-                    <p className="text-lg font-bold text-[#020022]">
-                      {g.ageGroup}
-                    </p>
+              {season.ageGroups.map((g) => (
+                <div
+                  key={g.ageGroup}
+                  className={`rounded-xl border border-gray-200 bg-white p-4 text-center ${
+                    g.tone === "full" ? "opacity-60" : ""
+                  }`}
+                >
+                  <p className="text-lg font-bold text-[#020022]">
+                    {g.ageGroup}
+                  </p>
+                  {g.show && (
                     <p
-                      className={`mt-1 text-sm font-semibold ${
-                        full
-                          ? "text-gray-500"
-                          : low
-                            ? "text-[#E43125]"
-                            : "text-green-700"
-                      }`}
+                      className={`mt-1 text-sm font-semibold ${TONE[g.tone]}`}
                     >
-                      {full
-                        ? "Full — waiting list"
-                        : `${g.spotsLeft} spot${g.spotsLeft === 1 ? "" : "s"} left`}
+                      {g.label}
                     </p>
-                  </div>
-                );
-              })}
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -1301,9 +1307,7 @@ const NewFamilyForm = ({
             {(season?.ageGroups ?? []).map((g) => (
               <option key={g.ageGroup} value={g.ageGroup}>
                 {g.ageGroup}
-                {g.spotsLeft === 0
-                  ? " — full, waiting list"
-                  : ` — ${g.spotsLeft} left`}
+                {g.show && g.label ? ` — ${g.label}` : ""}
               </option>
             ))}
           </select>

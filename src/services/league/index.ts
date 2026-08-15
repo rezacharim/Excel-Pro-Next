@@ -5,6 +5,10 @@ export interface LeagueAgeGroup {
   capacity: number;
   taken: number;
   spotsLeft: number;
+  /** Ready-to-render wording, decided server-side so it is changeable without a deploy. */
+  label: string;
+  tone: "ok" | "medium" | "low" | "full";
+  show: boolean;
 }
 
 export interface LeagueSeason {
@@ -18,6 +22,10 @@ export interface LeagueSeason {
   feePayInFull: number | null;
   registrationOpen: boolean;
   isLateNow: boolean;
+  lateFeeFrom: string | null;
+  spotsDisplay: "count" | "threshold" | "status" | "hidden";
+  /** Players who registered in the last 7 days — real momentum, not scarcity. */
+  recentSignups: number;
   paymentInstructions: string | null;
   ageGroups: LeagueAgeGroup[];
 }

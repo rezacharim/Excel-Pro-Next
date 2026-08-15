@@ -213,7 +213,7 @@ const Announcements = () => {
       </motion.div>
 
       {/* Announcement cards */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 -mt-10 pb-16">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-10 pb-16">
         {isLoading ? (
           <div className="bg-white rounded-xl shadow-md border border-gray-100 flex justify-center items-center py-16">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>

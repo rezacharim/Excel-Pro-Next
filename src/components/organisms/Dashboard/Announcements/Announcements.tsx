@@ -8,8 +8,10 @@ import {
   Loader2,
   Megaphone,
   Pencil,
+  Image as ImageIcon,
   Plus,
   RefreshCw,
+  Upload,
   Trash2,
   X,
   XCircle,
@@ -26,8 +28,16 @@ interface Announcement {
   category: AnnouncementCategory;
   ctaLabel: string | null;
   ctaUrl: string | null;
+  imageUrl: string | null;
   isActive: boolean;
   createdAt: string;
+}
+
+/** An image already in the Gallery, reusable across announcements. */
+interface GalleryImage {
+  id: string;
+  title: string;
+  image_url: string;
 }
 
 interface AnnouncementFormState {
@@ -36,6 +46,7 @@ interface AnnouncementFormState {
   body: string;
   ctaLabel: string;
   ctaUrl: string;
+  imageUrl: string;
   isActive: boolean;
 }
 
@@ -70,6 +81,7 @@ const EMPTY_FORM: AnnouncementFormState = {
   body: "",
   ctaLabel: "",
   ctaUrl: "",
+  imageUrl: "",
   isActive: true,
 };
 
@@ -91,6 +103,9 @@ const Announcements: NextPage = () => {
   const [form, setForm] = useState<AnnouncementFormState>(EMPTY_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [gallery, setGallery] = useState<GalleryImage[]>([]);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const savedToken = Cookies.get("auth_token");
 
@@ -138,6 +153,64 @@ const Announcements: NextPage = () => {
     setModal(null);
   };
 
+  /** The Gallery is the same one under Dashboard > Gallery. */
+  const fetchGallery = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/gallery`);
+      if (!response.ok) return;
+      const data = await response.json();
+      setGallery(Array.isArray(data) ? data : []);
+    } catch {
+      // A picker that cannot load is not worth an error banner; the admin can
+      // still upload a new photo.
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchGallery();
+  }, [fetchGallery]);
+
+  /**
+   * Uploading puts the photo in the Gallery and selects it here, so a picture
+   * used for an announcement is reusable rather than stranded.
+   */
+  const handlePhotoUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      showToast("error", "That file is not an image.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      showToast("error", "That photo is over 10MB. Please choose a smaller one.");
+      return;
+    }
+    setIsUploading(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      body.append("title", file.name.replace(/\.[^.]+$/, ""));
+      const response = await fetch(`${API_URL}/gallery`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${savedToken}` },
+        body,
+      });
+      if (!response.ok) throw new Error("Upload failed");
+      const created = await response.json();
+      const url = created?.image_url || created?.data?.image_url;
+      if (!url) throw new Error("Upload did not return an image URL");
+      setForm((f) => ({ ...f, imageUrl: url }));
+      setGalleryOpen(false);
+      fetchGallery();
+      showToast("success", "Photo uploaded and selected");
+    } catch (error) {
+      showToast(
+        "error",
+        error instanceof Error ? error.message : "Could not upload the photo"
+      );
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const openCreateModal = () => {
     setForm(EMPTY_FORM);
     setModal({ type: "create" });
@@ -150,6 +223,7 @@ const Announcements: NextPage = () => {
       body: announcement.body,
       ctaLabel: announcement.ctaLabel || "",
       ctaUrl: announcement.ctaUrl || "",
+      imageUrl: announcement.imageUrl || "",
       isActive: announcement.isActive,
     });
     setModal({ type: "edit", announcement });
@@ -173,6 +247,7 @@ const Announcements: NextPage = () => {
       body: form.body.trim(),
       ctaLabel: form.ctaLabel.trim() || null,
       ctaUrl: form.ctaUrl.trim() || null,
+      imageUrl: form.imageUrl.trim() || null,
       isActive: form.isActive,
     };
 
@@ -496,6 +571,117 @@ const Announcements: NextPage = () => {
                   />
                 </div>
               </div>
+              {/* ---- photo ---------------------------------------- */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Photo (optional)
+                </label>
+
+                {form.imageUrl ? (
+                  <div className="flex items-start gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={form.imageUrl}
+                      alt="Selected"
+                      className="w-32 h-20 object-cover rounded-lg border border-gray-200"
+                    />
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setGalleryOpen(true)}
+                        className="text-sm font-medium text-primary hover:underline text-left"
+                      >
+                        Change photo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, imageUrl: "" }))}
+                        className="text-sm text-gray-500 hover:underline text-left"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setGalleryOpen(true)}
+                      className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50"
+                    >
+                      <ImageIcon size={16} />
+                      Choose from gallery
+                    </button>
+                    <label className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 cursor-pointer">
+                      {isUploading ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Upload size={16} />
+                      )}
+                      {isUploading ? "Uploading…" : "Upload a new photo"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={isUploading}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handlePhotoUpload(file);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    <span className="text-xs text-gray-500">
+                      Leave empty to use the default photo for this category.
+                    </span>
+                  </div>
+                )}
+
+                {galleryOpen && (
+                  <div className="mt-3 border border-gray-200 rounded-lg p-3 max-h-64 overflow-y-auto">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-medium text-gray-700">
+                        Pick a photo
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setGalleryOpen(false)}
+                        className="text-sm text-gray-500 hover:underline"
+                      >
+                        Close
+                      </button>
+                    </div>
+                    {gallery.length === 0 ? (
+                      <p className="text-sm text-gray-500 py-4 text-center">
+                        No photos in the gallery yet. Upload one instead.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                        {gallery.map((image) => (
+                          <button
+                            key={image.id}
+                            type="button"
+                            onClick={() => {
+                              setForm((f) => ({ ...f, imageUrl: image.image_url }));
+                              setGalleryOpen(false);
+                            }}
+                            className="relative aspect-video rounded-md overflow-hidden border border-gray-200 hover:ring-2 hover:ring-primary"
+                            title={image.title}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={image.image_url}
+                              alt={image.title}
+                              className="w-full h-full object-cover"
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <label className="flex items-center gap-2 text-sm text-gray-700">
                 <input
                   type="checkbox"

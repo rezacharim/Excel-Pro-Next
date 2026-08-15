@@ -12,14 +12,15 @@ interface Announcement {
   category: AnnouncementCategory;
   ctaLabel: string | null;
   ctaUrl: string | null;
+  imageUrl?: string | null;
   isActive: boolean;
   createdAt: string;
 }
 
 /**
- * One image per category. The announcement itself carries no picture, and
- * asking the academy to upload one every time is how a news section quietly
- * stops being updated.
+ * Fallback image per category, used when an announcement has no photo of
+ * its own. A picture is optional on purpose: requiring one every time is how
+ * a news section quietly stops being updated.
  */
 const CATEGORY: Record<
   AnnouncementCategory,
@@ -117,11 +118,12 @@ const LatestNews = async () => {
               >
                 <div className="relative h-44 w-full overflow-hidden">
                   <Image
-                    src={meta.image}
+                    src={a.imageUrl || meta.image}
                     alt=""
                     fill
                     sizes="(max-width: 768px) 100vw, 33vw"
                     className="object-cover transition duration-500 group-hover:scale-105"
+                    unoptimized={Boolean(a.imageUrl)}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
                   <span

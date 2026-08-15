@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { RefreshCw, XCircle } from "lucide-react";
 
@@ -13,6 +14,7 @@ export interface Announcement {
   category: AnnouncementCategory;
   ctaLabel: string | null;
   ctaUrl: string | null;
+  imageUrl?: string | null;
   isActive: boolean;
   createdAt: string;
 }
@@ -35,6 +37,28 @@ const CATEGORY_BADGES: Record<
     label: "News",
     className: "bg-gray-200 text-gray-700",
   },
+};
+
+/**
+ * League registration and trials carry deadlines; general news does not.
+ * The ones a parent has to act on go first regardless of when they were
+ * posted, then newest within each group.
+ */
+const PRIORITY: Record<AnnouncementCategory, number> = {
+  league: 0,
+  trial: 1,
+  news: 2,
+};
+
+const byImportance = (a: Announcement, b: Announcement) =>
+  (PRIORITY[a.category] ?? 9) - (PRIORITY[b.category] ?? 9) ||
+  new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+
+/** Fallback photo when an announcement has none of its own. */
+const FALLBACK_IMAGE: Record<AnnouncementCategory, string> = {
+  league: "/images/billboard/teams.webp",
+  trial: "/images/billboard/Banner2.webp",
+  news: "/images/billboard/Banner3.webp",
 };
 
 const formatDate = (iso: string): string => {
@@ -212,32 +236,50 @@ const Announcements = () => {
             No announcements right now — check back soon.
           </div>
         ) : (
-          <div className="flex flex-col gap-6">
-            {announcements.map((announcement, index) => (
+          <div className="grid gap-6 md:grid-cols-2 items-start">
+            {[...announcements].sort(byImportance).map((announcement, index) => (
               <motion.article
                 key={announcement.id}
-                className="bg-white rounded-xl shadow-md border border-gray-100 p-6 md:p-8"
+                className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden flex flex-col"
                 initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.2 }}
+                viewport={{ once: true, amount: 0.1 }}
                 transition={{ delay: Math.min(index, 4) * 0.1, duration: 0.5 }}
               >
-                <div className="flex flex-wrap items-center gap-3 mb-3">
-                  <CategoryBadge category={announcement.category} />
-                  <time
-                    dateTime={announcement.createdAt}
-                    className="text-sm text-gray-500"
-                  >
-                    {formatDate(announcement.createdAt)}
-                  </time>
+                <div className="relative h-48 w-full">
+                  <Image
+                    src={
+                      announcement.imageUrl ||
+                      FALLBACK_IMAGE[announcement.category] ||
+                      FALLBACK_IMAGE.news
+                    }
+                    alt=""
+                    fill
+                    sizes="(max-width: 768px) 100vw, 50vw"
+                    className="object-cover"
+                    unoptimized={Boolean(announcement.imageUrl)}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                 </div>
-                <h2 className="text-xl md:text-2xl font-bold text-gray-900">
-                  {announcement.title}
-                </h2>
-                <p className="mt-3 text-gray-600 leading-relaxed whitespace-pre-line">
-                  {announcement.body}
-                </p>
-                <AnnouncementCta announcement={announcement} />
+
+                <div className="p-6 md:p-8 flex flex-col flex-1">
+                  <div className="flex flex-wrap items-center gap-3 mb-3">
+                    <CategoryBadge category={announcement.category} />
+                    <time
+                      dateTime={announcement.createdAt}
+                      className="text-sm text-gray-500"
+                    >
+                      {formatDate(announcement.createdAt)}
+                    </time>
+                  </div>
+                  <h2 className="text-xl md:text-2xl font-bold text-gray-900">
+                    {announcement.title}
+                  </h2>
+                  <p className="mt-3 text-gray-600 leading-relaxed whitespace-pre-line flex-1">
+                    {announcement.body}
+                  </p>
+                  <AnnouncementCta announcement={announcement} />
+                </div>
               </motion.article>
             ))}
           </div>

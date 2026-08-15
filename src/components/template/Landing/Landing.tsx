@@ -1,4 +1,5 @@
 import BannerSlider from "@/components/organisms/Billboard/Billboard";
+import LatestNews from "@/components/organisms/LatestNews/LatestNews";
 import HeroSection from "@/components/organisms/HeroSection/HeroSection";
 import Summary from "@/components/organisms/Summery/Summery";
 import SummeryPrograms from "@/components/organisms/SummeryPrograms/SummeryPrograms";
@@ -23,6 +24,9 @@ const Landing = async () => {
           <BannerSlider />
         </section>
       </PlayerProvider>
+      {/* Directly under the banner: league registration, trials and news,
+          pulled from the same announcements the dashboard manages. */}
+      <LatestNews />
       <HeroSection />
       <Summary />
       <SummeryServices />

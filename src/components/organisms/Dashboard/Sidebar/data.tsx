@@ -7,6 +7,7 @@ import {
   MessageCircle,
   PiggyBank,
   Settings,
+  ClipboardList,
   Trophy,
   UserCog,
   Users,
@@ -30,6 +31,12 @@ export const navigationItems: NavigationItemsTypes[] = [
     id: 8,
     icon: <Users className="w-5 h-5 text-gray-500" />,
     label: "Memberships",
+    active: false,
+  },
+  {
+    id: 14,
+    icon: <ClipboardList className="w-5 h-5 text-gray-500" />,
+    label: "League",
     active: false,
   },
   {

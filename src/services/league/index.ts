@@ -50,10 +50,47 @@ export interface LeagueRegistration {
 export interface PortalLeaguePlayer {
   userId: number;
   fullname: string;
+  firstName: string;
+  lastName: string;
   dateOfBirth: string | null;
+  gender: "M" | "F";
+  phone: string | null;
+  address1: string | null;
+  city: string | null;
+  postalCode: string | null;
+  parentName: string | null;
+  medicalNotes: string | null;
   registration: LeagueRegistration | null;
   /** Fields the league needs that are not yet on the member record. */
   missingForLeague: string[];
+  /** True once the roster has been filed — the snapshot is frozen. */
+  detailsLocked: boolean;
+}
+
+export interface UpdatePlayerPayload {
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+  gender?: "M" | "F";
+  phone?: string;
+  address1?: string;
+  city?: string;
+  postalCode?: string;
+  parentName?: string;
+  medicalNotes?: string;
+}
+
+export interface AddPlayerPayload {
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  gender: "M" | "F";
+  phone: string;
+  address1: string;
+  city: string;
+  postalCode: string;
+  parentName?: string;
+  medicalNotes?: string;
 }
 
 export interface PortalLeagueOverview {
@@ -173,6 +210,42 @@ export const portalRegisterForLeague = async (
 ): Promise<LeagueRegistration> =>
   parse(
     await fetch(`${API}/portal/league/register`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    })
+  );
+
+/** A parent correcting their own family's details. */
+export const updatePortalPlayer = async (
+  token: string,
+  userId: number,
+  payload: UpdatePlayerPayload
+): Promise<PortalLeagueOverview> =>
+  parse(
+    await fetch(`${API}/portal/league/player/${userId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    })
+  );
+
+/**
+ * A family who trains with the academy but has never been on file — they
+ * joined at the field, not through the website.
+ */
+export const addPortalPlayer = async (
+  token: string,
+  payload: AddPlayerPayload
+): Promise<PortalLeagueOverview> =>
+  parse(
+    await fetch(`${API}/portal/league/player`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

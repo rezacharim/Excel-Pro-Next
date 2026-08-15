@@ -7,6 +7,8 @@ import {
   getPortalLeague,
   portalRegisterForLeague,
   registerForLeague,
+  updatePortalPlayer,
+  addPortalPlayer,
   type LeagueSeason,
   type PortalLeagueOverview,
   type PortalLeaguePlayer,
@@ -275,11 +277,16 @@ const League = () => {
               className="rounded-2xl border-2 border-[#E43125] bg-white p-7 text-left transition hover:shadow-lg"
             >
               <p className="text-lg font-bold text-[#020022]">
-                We already train with Excel Pro
+                My child already trains with Excel Pro
               </p>
               <p className="mt-2 text-sm text-gray-600">
-                Sign in with your email and register your child in about 30
-                seconds. Everything we already hold is filled in for you.
+                Sign in with your email and register in about 30 seconds.
+                Anything we already hold is filled in for you &mdash; and you
+                can correct it if it is out of date.
+              </p>
+              <p className="mt-2 text-sm text-gray-500">
+                Never used our website before? Still choose this. Signing in
+                creates your account, and you can add your child yourself.
               </p>
               <span className="mt-4 inline-block font-semibold text-[#E43125]">
                 Continue →
@@ -291,11 +298,12 @@ const League = () => {
               className="rounded-2xl border border-gray-300 bg-white p-7 text-left transition hover:shadow-lg"
             >
               <p className="text-lg font-bold text-[#020022]">
-                We are new to Excel Pro
+                We are new to the academy
               </p>
               <p className="mt-2 text-sm text-gray-600">
-                Fill in your child&apos;s details once. Takes about 3 minutes,
-                and you get a family account you can use from then on.
+                Your child has not trained with us before. Fill in their
+                details once &mdash; about 3 minutes &mdash; and you get a
+                family account to use from then on.
               </p>
               <span className="mt-4 inline-block font-semibold text-[#020022]">
                 Continue →
@@ -466,6 +474,7 @@ const ExistingFamily = ({
   onSignOut: () => void;
 }) => {
   const [openFor, setOpenFor] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
 
   return (
     <div>
@@ -481,15 +490,42 @@ const ExistingFamily = ({
         </div>
       </div>
 
-      {overview.players.length === 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-600">
-          We could not find any players under this email. If your child trains
-          with us under a different address, sign out and try that one — or{" "}
-          <Link href="/register" className="text-[#E43125] underline">
-            register as a new player
-          </Link>
-          .
+      {overview.players.length === 0 && !adding && (
+        <div className="rounded-xl border border-gray-200 bg-white p-6">
+          <p className="font-semibold text-[#020022]">
+            No players on file for this email yet
+          </p>
+          <p className="mt-2 text-sm text-gray-600">
+            That is normal if your child joined us at the field rather than
+            through this website. Add them here and they will be on your
+            account from now on.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              onClick={() => setAdding(true)}
+              className="rounded-lg bg-[#E43125] px-5 py-2.5 font-semibold text-white transition hover:bg-[#c4291f]"
+            >
+              Add my player
+            </button>
+            <button
+              onClick={onSignOut}
+              className="rounded-lg border border-gray-300 px-5 py-2.5 font-semibold text-gray-700 transition hover:bg-gray-50"
+            >
+              Try a different email
+            </button>
+          </div>
         </div>
+      )}
+
+      {adding && (
+        <AddPlayerForm
+          token={token}
+          onCancel={() => setAdding(false)}
+          onAdded={() => {
+            setAdding(false);
+            onDone();
+          }}
+        />
       )}
 
       <div className="space-y-4">
@@ -510,13 +546,18 @@ const ExistingFamily = ({
         ))}
       </div>
 
-      <p className="mt-6 text-sm text-gray-600">
-        Another child not shown here?{" "}
-        <Link href="/register" className="text-[#E43125] underline">
-          Add them to your family account
-        </Link>
-        .
-      </p>
+      {overview.players.length > 0 && !adding && (
+        <p className="mt-6 text-sm text-gray-600">
+          Another child not shown here?{" "}
+          <button
+            onClick={() => setAdding(true)}
+            className="font-medium text-[#E43125] underline"
+          >
+            Add them to your family account
+          </button>
+          .
+        </p>
+      )}
     </div>
   );
 };
@@ -537,6 +578,7 @@ const PlayerRow = ({
   onDone: () => void;
 }) => {
   const reg = player.registration;
+  const [editing, setEditing] = useState(false);
   const [ageGroup, setAgeGroup] = useState("");
   const [consent, setConsent] = useState(false);
   const [extra, setExtra] = useState({
@@ -584,17 +626,46 @@ const PlayerRow = ({
             </p>
           )}
         </div>
-        {reg ? (
-          <StatusPill status={reg.status} />
-        ) : (
-          <button
-            onClick={onToggle}
-            className="rounded-lg bg-[#E43125] px-5 py-2.5 font-semibold text-white transition hover:bg-[#c4291f]"
-          >
-            {open ? "Cancel" : "Register for the league"}
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          {!player.detailsLocked && (
+            <button
+              onClick={() => setEditing(!editing)}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+            >
+              {editing ? "Cancel" : "Edit details"}
+            </button>
+          )}
+          {reg ? (
+            <StatusPill status={reg.status} />
+          ) : (
+            <button
+              onClick={onToggle}
+              className="rounded-lg bg-[#E43125] px-5 py-2.5 font-semibold text-white transition hover:bg-[#c4291f]"
+            >
+              {open ? "Cancel" : "Register for the league"}
+            </button>
+          )}
+        </div>
       </div>
+
+      {player.detailsLocked && (
+        <p className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
+          This roster has been filed with the league, so these details are now
+          locked. Contact the academy if something needs correcting.
+        </p>
+      )}
+
+      {editing && (
+        <EditPlayerForm
+          player={player}
+          token={token}
+          onCancel={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false);
+            onDone();
+          }}
+        />
+      )}
 
       {reg && (
         <div className="mt-4 border-t border-gray-100 pt-4">
@@ -755,6 +826,353 @@ const PlayerRow = ({
           </button>
         </div>
       )}
+    </div>
+  );
+};
+
+
+/* ------------------------------------------------------- edit / add forms */
+
+/**
+ * Families move house, and a name typed at 11pm on a phone is often wrong.
+ * Making a parent phone the academy to fix it is exactly how a wrong date of
+ * birth ends up on a roster filed with the league.
+ */
+const EditPlayerForm = ({
+  player,
+  token,
+  onCancel,
+  onSaved,
+}: {
+  player: PortalLeaguePlayer;
+  token: string;
+  onCancel: () => void;
+  onSaved: () => void;
+}) => {
+  const [form, setForm] = useState({
+    firstName: player.firstName || "",
+    lastName: player.lastName || "",
+    dateOfBirth: (player.dateOfBirth || "").slice(0, 10),
+    gender: player.gender || "M",
+    phone: player.phone || "",
+    address1: player.address1 || "",
+    city: player.city || "",
+    postalCode: player.postalCode || "",
+    parentName: player.parentName || "",
+    medicalNotes: player.medicalNotes || "",
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const set = (k: keyof typeof form, v: string) =>
+    setForm((f) => ({ ...f, [k]: v }));
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await updatePortalPlayer(token, player.userId, {
+        ...form,
+        gender: form.gender as "M" | "F",
+      });
+      onSaved();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-5 space-y-4 border-t border-gray-100 pt-5">
+      <p className="text-sm text-gray-600">
+        Correct anything that is wrong or out of date. Changes also update the
+        league registration, as long as the roster has not been filed yet.
+      </p>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="First name">
+          <input
+            className={inputClass}
+            value={form.firstName}
+            onChange={(e) => set("firstName", e.target.value)}
+          />
+        </Field>
+        <Field label="Last name">
+          <input
+            className={inputClass}
+            value={form.lastName}
+            onChange={(e) => set("lastName", e.target.value)}
+          />
+        </Field>
+        <Field
+          label="Date of birth"
+          hint="Must match the child's passport or birth certificate."
+        >
+          <input
+            type="date"
+            className={inputClass}
+            value={form.dateOfBirth}
+            onChange={(e) => set("dateOfBirth", e.target.value)}
+          />
+        </Field>
+        <Field label="Gender">
+          <select
+            className={inputClass}
+            value={form.gender}
+            onChange={(e) => set("gender", e.target.value)}
+          >
+            <option value="M">Male</option>
+            <option value="F">Female</option>
+          </select>
+        </Field>
+        <Field label="Parent / guardian name">
+          <input
+            className={inputClass}
+            value={form.parentName}
+            onChange={(e) => set("parentName", e.target.value)}
+          />
+        </Field>
+        <Field label="Phone number">
+          <input
+            className={inputClass}
+            value={form.phone}
+            onChange={(e) => set("phone", e.target.value)}
+          />
+        </Field>
+        <Field label="Street address">
+          <input
+            className={inputClass}
+            value={form.address1}
+            onChange={(e) => set("address1", e.target.value)}
+          />
+        </Field>
+        <Field label="City">
+          <input
+            className={inputClass}
+            value={form.city}
+            onChange={(e) => set("city", e.target.value)}
+          />
+        </Field>
+        <Field label="Postal code">
+          <input
+            className={inputClass}
+            value={form.postalCode}
+            onChange={(e) => set("postalCode", e.target.value)}
+          />
+        </Field>
+      </div>
+
+      <Field
+        label="Medical notes"
+        hint="Allergies, asthma, medication — anything a coach must know."
+      >
+        <textarea
+          rows={2}
+          className={inputClass}
+          value={form.medicalNotes}
+          onChange={(e) => set("medicalNotes", e.target.value)}
+        />
+      </Field>
+
+      <p className="text-xs text-gray-500">
+        Your email address is how you sign in, so it cannot be changed here.
+        Contact the academy if it needs updating.
+      </p>
+
+      {error && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </p>
+      )}
+
+      <div className="flex gap-3">
+        <button
+          onClick={save}
+          disabled={busy}
+          className="flex items-center justify-center gap-2 rounded-lg bg-[#E43125] px-6 py-2.5 font-semibold text-white transition hover:bg-[#c4291f] disabled:opacity-50"
+        >
+          {busy && <Spinner />}
+          Save changes
+        </button>
+        <button
+          onClick={onCancel}
+          className="rounded-lg border border-gray-300 px-5 py-2.5 font-medium text-gray-700 transition hover:bg-gray-50"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * A child who trains with the academy but was never entered on the website —
+ * signed up at the field, on paper, or before the site existed.
+ */
+const AddPlayerForm = ({
+  token,
+  onCancel,
+  onAdded,
+}: {
+  token: string;
+  onCancel: () => void;
+  onAdded: () => void;
+}) => {
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    dateOfBirth: "",
+    gender: "M",
+    phone: "",
+    address1: "",
+    city: "",
+    postalCode: "",
+    parentName: "",
+    medicalNotes: "",
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const set = (k: keyof typeof form, v: string) =>
+    setForm((f) => ({ ...f, [k]: v }));
+
+  const ready = (
+    ["firstName", "lastName", "dateOfBirth", "phone", "address1", "city", "postalCode"] as const
+  ).every((k) => form[k].trim());
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await addPortalPlayer(token, { ...form, gender: form.gender as "M" | "F" });
+      onAdded();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl bg-white p-7 shadow-sm ring-1 ring-gray-200">
+      <h3 className="text-lg font-bold text-[#020022]">Add your player</h3>
+      <p className="mt-1 text-sm text-gray-600">
+        You only do this once. After this they stay on your account and
+        registering takes seconds.
+      </p>
+
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <Field label="Player first name" required>
+          <input
+            className={inputClass}
+            value={form.firstName}
+            onChange={(e) => set("firstName", e.target.value)}
+          />
+        </Field>
+        <Field label="Player last name" required>
+          <input
+            className={inputClass}
+            value={form.lastName}
+            onChange={(e) => set("lastName", e.target.value)}
+          />
+        </Field>
+        <Field
+          label="Date of birth"
+          required
+          hint="Must match the child's passport or birth certificate."
+        >
+          <input
+            type="date"
+            className={inputClass}
+            value={form.dateOfBirth}
+            onChange={(e) => set("dateOfBirth", e.target.value)}
+          />
+        </Field>
+        <Field label="Gender" required>
+          <select
+            className={inputClass}
+            value={form.gender}
+            onChange={(e) => set("gender", e.target.value)}
+          >
+            <option value="M">Male</option>
+            <option value="F">Female</option>
+          </select>
+        </Field>
+        <Field label="Parent / guardian name">
+          <input
+            className={inputClass}
+            value={form.parentName}
+            onChange={(e) => set("parentName", e.target.value)}
+          />
+        </Field>
+        <Field label="Phone number" required>
+          <input
+            className={inputClass}
+            value={form.phone}
+            onChange={(e) => set("phone", e.target.value)}
+          />
+        </Field>
+        <Field label="Street address" required>
+          <input
+            className={inputClass}
+            value={form.address1}
+            onChange={(e) => set("address1", e.target.value)}
+          />
+        </Field>
+        <Field label="City" required>
+          <input
+            className={inputClass}
+            value={form.city}
+            onChange={(e) => set("city", e.target.value)}
+          />
+        </Field>
+        <Field label="Postal code" required>
+          <input
+            className={inputClass}
+            value={form.postalCode}
+            onChange={(e) => set("postalCode", e.target.value)}
+            placeholder="L3T 3S2"
+          />
+        </Field>
+      </div>
+
+      <div className="mt-4">
+        <Field
+          label="Medical notes"
+          hint="Allergies, asthma, medication — anything a coach must know."
+        >
+          <textarea
+            rows={2}
+            className={inputClass}
+            value={form.medicalNotes}
+            onChange={(e) => set("medicalNotes", e.target.value)}
+          />
+        </Field>
+      </div>
+
+      {error && (
+        <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </p>
+      )}
+
+      <div className="mt-5 flex gap-3">
+        <button
+          onClick={save}
+          disabled={busy || !ready}
+          className="flex items-center justify-center gap-2 rounded-lg bg-[#E43125] px-6 py-2.5 font-semibold text-white transition hover:bg-[#c4291f] disabled:opacity-50"
+        >
+          {busy && <Spinner />}
+          Add player
+        </button>
+        <button
+          onClick={onCancel}
+          className="rounded-lg border border-gray-300 px-5 py-2.5 font-medium text-gray-700 transition hover:bg-gray-50"
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 };

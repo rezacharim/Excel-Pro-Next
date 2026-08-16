@@ -2,26 +2,15 @@
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+import type { ApiCoach } from "@/services/coaches";
 
 interface Coach {
   id: number;
   name: string;
+  slug: string;
   role: string;
   bio: string;
   imageSrc: string;
-  isPlaceholder?: boolean;
-}
-
-/** Shape returned by GET /coaches. */
-interface ApiCoach {
-  id: number;
-  name: string;
-  role: string;
-  bio: string | null;
-  imageUrl: string | null;
 }
 
 /**
@@ -30,12 +19,14 @@ interface ApiCoach {
  * These are managed from Dashboard > Coaches now, but this list stays as the
  * fallback: if the backend is asleep, mid-deploy or unreachable, the page
  * shows the real team rather than an empty grid. A visitor should never see
- * "no coaches" because of an API hiccup.
+ * "no coaches" because of an API hiccup. Fallback cards do not link anywhere,
+ * because we cannot know whether a profile page would resolve.
  */
 const FALLBACK_COACHES: Coach[] = [
   {
     id: 1,
     name: "Reza Abedian",
+    slug: "",
     role: "Founder & Head Coach",
     bio: "Former Iran National Team player and Persepolis FC star with 18+ years of coaching experience. Reza founded Excel Pro Soccer Academy to bring professional, top-level training to young players across Markham and the GTA.",
     imageSrc: "/images/person/reza-abedian.webp",
@@ -43,6 +34,7 @@ const FALLBACK_COACHES: Coach[] = [
   {
     id: 2,
     name: "Reza Charim",
+    slug: "",
     role: "Head Coach & Teams Manager",
     bio: "Coach Reza has a strong background in football and sports. He played for several clubs in Kuwait until the age of 19, when an injury ended his playing career. He later worked with sports federations and the Olympic movement in Kuwait, gaining international experience through AFC, FIFA and Olympic events. Today he brings that experience and passion for the game into coaching and player development.",
     imageSrc: "/images/person/reza-charim-coach.jpg",
@@ -50,6 +42,7 @@ const FALLBACK_COACHES: Coach[] = [
   {
     id: 3,
     name: "Iman Badamaki",
+    slug: "",
     role: "Youth Coach",
     bio: "Coach Iman is an experienced youth football coach with over 17 years in the game. He holds an AFC B Coaching Licence and graduated top of his AFC D Licence class, earning a recommendation to advance to the next level. He has coached at the highest levels of youth football, including Premier League competition, and has won multiple championships in Mashhad and Razavi Khorasan Province. A former youth player with Aboumoslem Khorasan FC, he led Excel Pro's U10 team to a championship.",
     imageSrc: "/images/person/iman-badamaki.jpg",
@@ -64,36 +57,17 @@ const columnsFor = (count: number): string => {
   return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4";
 };
 
-const Coaches = () => {
-  const [coaches, setCoaches] = useState<Coach[]>(FALLBACK_COACHES);
-
-  useEffect(() => {
-    if (!API_URL) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const response = await fetch(`${API_URL}/coaches`);
-        if (!response.ok) return;
-        const data: ApiCoach[] = await response.json();
-        if (cancelled || !Array.isArray(data) || data.length === 0) return;
-        setCoaches(
-          data.map((c) => ({
-            id: c.id,
-            name: c.name,
-            role: c.role,
-            bio: c.bio ?? "",
-            imageSrc: c.imageUrl || "/images/person/avatars/Avatar1.png",
-          }))
-        );
-      } catch {
-        // Keep the fallback list. An unreachable API is not a reason to show
-        // the visitor an empty page.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+const Coaches = ({ coaches: fromApi }: { coaches: ApiCoach[] }) => {
+  const coaches: Coach[] = fromApi.length
+    ? fromApi.map((c) => ({
+        id: c.id,
+        name: c.name,
+        slug: c.slug ?? "",
+        role: c.role,
+        bio: c.bio ?? "",
+        imageSrc: c.imageUrl || "/images/person/avatars/Avatar1.png",
+      }))
+    : FALLBACK_COACHES;
 
   return (
     <section className="bg-white overflow-hidden">
@@ -159,7 +133,7 @@ const Coaches = () => {
           {coaches.map((coach, index) => (
             <motion.article
               key={coach.id}
-              className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100 flex flex-col"
+              className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100 flex flex-col transition-shadow hover:shadow-lg"
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
@@ -197,6 +171,15 @@ const Coaches = () => {
                 <p className="mt-3 text-sm text-gray-600 leading-relaxed">
                   {coach.bio}
                 </p>
+                {coach.slug && (
+                  <Link
+                    href={`/coaches/${coach.slug}`}
+                    className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                  >
+                    Full profile
+                    <span aria-hidden>&rarr;</span>
+                  </Link>
+                )}
               </div>
             </motion.article>
           ))}

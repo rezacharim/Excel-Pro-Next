@@ -23,12 +23,20 @@ import {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
+interface CoachPhoto {
+  url: string;
+  caption?: string;
+}
+
 interface Coach {
   id: number;
   name: string;
+  slug: string;
   role: string;
   bio: string;
+  longBio: string | null;
   imageUrl: string | null;
+  photos: CoachPhoto[] | null;
   sortOrder: number;
   isActive: boolean;
 }
@@ -44,7 +52,9 @@ interface CoachFormState {
   name: string;
   role: string;
   bio: string;
+  longBio: string;
   imageUrl: string;
+  photos: CoachPhoto[];
   isActive: boolean;
 }
 
@@ -62,7 +72,9 @@ const EMPTY_FORM: CoachFormState = {
   name: "",
   role: "",
   bio: "",
+  longBio: "",
   imageUrl: "",
+  photos: [],
   isActive: true,
 };
 
@@ -92,6 +104,9 @@ const Coaches: NextPage = () => {
   const [toast, setToast] = useState<ToastState | null>(null);
   const [gallery, setGallery] = useState<GalleryImage[]>([]);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  // The same gallery picker fills two different fields, so it has to remember
+  // which one opened it.
+  const [pickerTarget, setPickerTarget] = useState<"main" | "profile">("main");
   const [isUploading, setIsUploading] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
 
@@ -168,7 +183,11 @@ const Coaches: NextPage = () => {
       const created = await response.json();
       const url = created?.image_url || created?.data?.image_url;
       if (!url) throw new Error("Upload did not return an image URL");
-      setForm((f) => ({ ...f, imageUrl: url }));
+      setForm((f) =>
+        pickerTarget === "main"
+          ? { ...f, imageUrl: url }
+          : { ...f, photos: [...f.photos, { url }] }
+      );
       setGalleryOpen(false);
       fetchGallery();
       showToast("success", "Photo uploaded and selected");
@@ -198,7 +217,9 @@ const Coaches: NextPage = () => {
       name: coach.name,
       role: coach.role,
       bio: coach.bio ?? "",
+      longBio: coach.longBio ?? "",
       imageUrl: coach.imageUrl ?? "",
+      photos: Array.isArray(coach.photos) ? coach.photos : [],
       isActive: coach.isActive,
     });
     setModal({ type: "edit", coach });
@@ -225,7 +246,14 @@ const Coaches: NextPage = () => {
           name: form.name.trim(),
           role: form.role.trim(),
           bio: form.bio.trim(),
+          longBio: form.longBio.trim(),
           imageUrl: form.imageUrl.trim(),
+          photos: form.photos
+            .filter((p) => p.url)
+            .map((p) => ({
+              url: p.url,
+              ...(p.caption?.trim() ? { caption: p.caption.trim() } : {}),
+            })),
           isActive: form.isActive,
         }),
       });
@@ -465,6 +493,25 @@ const Coaches: NextPage = () => {
                     {coach.bio}
                   </p>
                 )}
+                <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400">
+                  {coach.slug && (
+                    <a
+                      href={`/coaches/${coach.slug}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="hover:text-[#E43125] hover:underline"
+                    >
+                      /coaches/{coach.slug}
+                    </a>
+                  )}
+                  {coach.photos?.length ? (
+                    <span>
+                      {coach.photos.length} photo
+                      {coach.photos.length === 1 ? "" : "s"}
+                    </span>
+                  ) : null}
+                  {coach.longBio?.trim() ? <span>story written</span> : null}
+                </div>
               </div>
 
               {/* Actions */}
@@ -593,7 +640,10 @@ const Coaches: NextPage = () => {
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        onClick={() => setGalleryOpen(true)}
+                        onClick={() => {
+                          setPickerTarget("main");
+                          setGalleryOpen(true);
+                        }}
                         className="inline-flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-md hover:bg-gray-50"
                       >
                         <ImageIcon size={16} />
@@ -613,6 +663,7 @@ const Coaches: NextPage = () => {
                           className="hidden"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
+                            setPickerTarget("main");
                             if (file) handlePhotoUpload(file);
                           }}
                         />
@@ -635,48 +686,163 @@ const Coaches: NextPage = () => {
                   </div>
                 </div>
 
-                {galleryOpen && (
-                  <div className="mt-3 border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-700">
-                        Gallery
-                      </span>
+              </div>
+
+              {/* Full profile page */}
+              <div className="border-t border-gray-100 pt-4">
+                <h3 className="text-sm font-semibold text-[#020022]">
+                  Full profile page
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5 mb-3">
+                  Everything below appears on this coach&apos;s own page, linked
+                  from their card with &ldquo;Full profile&rdquo;. Leave it empty
+                  and the page simply shows the photo and short bio above.
+                </p>
+
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Their story — playing career through to coaching
+                </label>
+                <textarea
+                  value={form.longBio}
+                  onChange={(e) =>
+                    setForm({ ...form, longBio: e.target.value })
+                  }
+                  rows={10}
+                  placeholder={
+                    "Write it as you would tell it. Leave a blank line between paragraphs.\n\nHe started at… then signed for…\n\nAfter retiring he moved into coaching…"
+                  }
+                  className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#E43125]/30"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  A blank line starts a new paragraph on the page.
+                </p>
+
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Photos{form.photos.length ? ` (${form.photos.length})` : ""}
+                    </label>
+                    <div className="flex gap-2">
                       <button
                         type="button"
-                        onClick={() => setGalleryOpen(false)}
-                        className="text-gray-400 hover:text-gray-700"
+                        onClick={() => {
+                          setPickerTarget("profile");
+                          setGalleryOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-200 rounded-md hover:bg-gray-50"
                       >
-                        <X size={16} />
+                        <ImageIcon size={14} />
+                        Add from gallery
                       </button>
+                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-200 rounded-md hover:bg-gray-50 cursor-pointer">
+                        {isUploading ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Upload size={14} />
+                        )}
+                        Upload
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={isUploading}
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            setPickerTarget("profile");
+                            if (file) handlePhotoUpload(file);
+                          }}
+                        />
+                      </label>
                     </div>
-                    {gallery.length === 0 ? (
-                      <p className="text-sm text-gray-400 py-4 text-center">
-                        No photos in the gallery yet. Upload one instead.
-                      </p>
-                    ) : (
-                      <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-56 overflow-y-auto">
-                        {gallery.map((image) => (
-                          <button
-                            key={image.id}
-                            type="button"
-                            onClick={() => {
-                              setForm({ ...form, imageUrl: image.image_url });
-                              setGalleryOpen(false);
-                            }}
-                            className="aspect-square rounded-md overflow-hidden border border-gray-200 hover:border-[#E43125]"
-                          >
+                  </div>
+
+                  {form.photos.length === 0 ? (
+                    <p className="text-sm text-gray-400 py-6 text-center border border-dashed border-gray-200 rounded-lg">
+                      No photos yet. Add as many as you like — playing days,
+                      trophies, training sessions.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {form.photos.map((photo, index) => (
+                        <div
+                          key={`${photo.url}-${index}`}
+                          className="flex items-center gap-3 p-2 border border-gray-200 rounded-lg"
+                        >
+                          <div className="w-14 h-14 rounded bg-gray-100 overflow-hidden flex-shrink-0">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
-                              src={image.image_url}
-                              alt={image.title}
+                              src={photo.url}
+                              alt=""
                               className="w-full h-full object-cover"
                             />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+                          </div>
+                          <input
+                            value={photo.caption ?? ""}
+                            onChange={(e) => {
+                              const next = [...form.photos];
+                              next[index] = {
+                                ...next[index],
+                                caption: e.target.value,
+                              };
+                              setForm({ ...form, photos: next });
+                            }}
+                            placeholder="Caption (optional) — e.g. Persepolis FC, 2004"
+                            className="flex-1 px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#E43125]/30"
+                          />
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button
+                              type="button"
+                              title="Move up"
+                              disabled={index === 0}
+                              onClick={() => {
+                                const next = [...form.photos];
+                                [next[index - 1], next[index]] = [
+                                  next[index],
+                                  next[index - 1],
+                                ];
+                                setForm({ ...form, photos: next });
+                              }}
+                              className="p-1.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30"
+                            >
+                              <ArrowUp size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              title="Move down"
+                              disabled={index === form.photos.length - 1}
+                              onClick={() => {
+                                const next = [...form.photos];
+                                [next[index], next[index + 1]] = [
+                                  next[index + 1],
+                                  next[index],
+                                ];
+                                setForm({ ...form, photos: next });
+                              }}
+                              className="p-1.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30"
+                            >
+                              <ArrowDown size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              title="Remove"
+                              onClick={() =>
+                                setForm({
+                                  ...form,
+                                  photos: form.photos.filter(
+                                    (_, i) => i !== index
+                                  ),
+                                })
+                              }
+                              className="p-1.5 rounded text-gray-500 hover:bg-red-50 hover:text-[#E43125]"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -707,6 +873,99 @@ const Coaches: NextPage = () => {
               >
                 {isSubmitting && <Loader2 size={16} className="animate-spin" />}
                 {modal.type === "edit" ? "Save changes" : "Add coach"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Gallery picker. One overlay serves both the card photo and the
+          profile gallery; pickerTarget decides where a click lands. */}
+      {galleryOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-3xl shadow-xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+              <div>
+                <h3 className="font-semibold text-[#020022]">Gallery</h3>
+                <p className="text-xs text-gray-400">
+                  {pickerTarget === "main"
+                    ? "Choose the photo for this coach's card"
+                    : "Click photos to add them to the profile page — you can pick several"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGalleryOpen(false)}
+                className="p-1 text-gray-400 hover:text-gray-700"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto">
+              {gallery.length === 0 ? (
+                <p className="text-sm text-gray-400 py-10 text-center">
+                  No photos in the gallery yet. Close this and use Upload
+                  instead.
+                </p>
+              ) : (
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                  {gallery.map((image) => {
+                    const chosen =
+                      pickerTarget === "main"
+                        ? form.imageUrl === image.image_url
+                        : form.photos.some((p) => p.url === image.image_url);
+                    return (
+                      <button
+                        key={image.id}
+                        type="button"
+                        onClick={() => {
+                          if (pickerTarget === "main") {
+                            setForm({ ...form, imageUrl: image.image_url });
+                            setGalleryOpen(false);
+                            return;
+                          }
+                          // Multi-select: clicking an already-added photo takes
+                          // it back out, and the picker stays open so several
+                          // can be added in one go.
+                          setForm((f) => ({
+                            ...f,
+                            photos: f.photos.some(
+                              (p) => p.url === image.image_url
+                            )
+                              ? f.photos.filter(
+                                  (p) => p.url !== image.image_url
+                                )
+                              : [...f.photos, { url: image.image_url }],
+                          }));
+                        }}
+                        className={`relative aspect-square rounded-md overflow-hidden border-2 ${
+                          chosen ? "border-[#E43125]" : "border-gray-200"
+                        } hover:border-[#E43125]`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={image.image_url}
+                          alt={image.title}
+                          className="w-full h-full object-cover"
+                        />
+                        {chosen && (
+                          <span className="absolute top-1 right-1 bg-[#E43125] text-white rounded-full p-0.5">
+                            <CheckCircle2 size={14} />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end px-5 py-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setGalleryOpen(false)}
+                className="px-4 py-2 text-sm bg-[#020022] text-white rounded-md"
+              >
+                Done
               </button>
             </div>
           </div>

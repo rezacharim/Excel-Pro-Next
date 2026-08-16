@@ -9,6 +9,7 @@ import {
   Settings,
   ClipboardList,
   Trophy,
+  UserRound,
   UserCog,
   Users,
 } from "lucide-react";
@@ -85,6 +86,12 @@ export const navigationItems: NavigationItemsTypes[] = [
     id: 2,
     icon: <LayoutGrid className="w-5 h-5 text-gray-500" />,
     label: "Match's",
+    active: false,
+  },
+  {
+    id: 15,
+    icon: <UserRound className="w-5 h-5 text-gray-500" />,
+    label: "Coaches",
     active: false,
   },
   {

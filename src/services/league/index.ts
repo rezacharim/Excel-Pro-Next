@@ -11,6 +11,12 @@ export interface LeagueAgeGroup {
   show: boolean;
 }
 
+/** One line of a price breakdown, worded by the API. */
+export interface FeeLine {
+  label: string;
+  amount: number;
+}
+
 export interface LeagueSeason {
   id: number;
   name: string;
@@ -24,6 +30,22 @@ export interface LeagueSeason {
   isLateNow: boolean;
   lateFeeFrom: string | null;
   spotsDisplay: "count" | "threshold" | "status" | "hidden";
+  slug: string | null;
+  kind: "league" | "indoor";
+  tagline: string | null;
+  /** What the money being collected now actually buys, e.g. "Covers March & April". */
+  paymentCoversNote: string | null;
+  /** What an existing member pays now. */
+  memberFee: number;
+  memberLines: FeeLine[];
+  /** What a player new to the academy pays now. */
+  newPlayerFee: number;
+  newPlayerLines: FeeLine[];
+  depositAmount: number;
+  firstTermAmount: number | null;
+  uniformFee: number | null;
+  /** 1 = a single payment, 2 = the league's two installments. */
+  installmentCount: number;
   /** Players who registered in the last 7 days — real momentum, not scarcity. */
   recentSignups: number;
   paymentInstructions: string | null;
@@ -116,6 +138,8 @@ export interface PortalLeagueOverview {
 }
 
 export interface PublicRegisterPayload {
+  /** Season URL key. Omit for the active league season. */
+  slug?: string;
   ageGroup: string;
   firstName: string;
   lastName: string;
@@ -175,8 +199,14 @@ const parse = async (res: Response) => {
   return data;
 };
 
-export const getLeagueSeason = async (): Promise<LeagueSeason> =>
-  parse(await fetch(`${API}/league/season`, { cache: "no-store" }));
+export const getLeagueSeason = async (
+  slug?: string
+): Promise<LeagueSeason> =>
+  parse(
+    await fetch(`${API}/league/season${slug ? `/${slug}` : ""}`, {
+      cache: "no-store",
+    })
+  );
 
 export const registerForLeague = async (
   payload: PublicRegisterPayload

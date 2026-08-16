@@ -231,6 +231,19 @@ const League = () => {
           </div>
         )}
 
+        {/* What the fee buys. The first question a parent asks about a $900
+            youth season, and the one most likely to stall a decision. */}
+        {season?.paymentCoversNote && (
+          <div className="mb-10 rounded-xl border-l-4 border-[#E43125] bg-white p-6 shadow-sm">
+            <h2 className="font-bold text-[#020022]">
+              What the {money(season.feeTotal)} covers
+            </h2>
+            <p className="mt-2 whitespace-pre-line text-gray-700">
+              {season.paymentCoversNote}
+            </p>
+          </div>
+        )}
+
         {/* ------------------------------------------------ spots per group */}
         {season && season.ageGroups.some((g) => g.show) && (
           <div className="mb-12">

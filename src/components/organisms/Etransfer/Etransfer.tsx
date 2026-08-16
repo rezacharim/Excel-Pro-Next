@@ -168,7 +168,7 @@ const Etransfer = () => {
 
   // Calculate final price
   const price = plans[selectedPlan]?.price?.split("/")[0] || "380";
-  const firstTimeRegistrationFee = 75; // First-time registration fee
+  const firstTimeRegistrationFee = 75; // One-time uniform, first registration only
   const finalPrice = isFirstTime
     ? (parseInt(price) + firstTimeRegistrationFee).toString()
     : price;
@@ -372,7 +372,7 @@ const Etransfer = () => {
             <p>Amount: ${finalPrice}</p>
             <p className="mt-2 text-sm text-gray-600">
               {isFirstTime
-                ? `It appears this is your first time registering. ($${firstTimeRegistrationFee} first-time registration fee added)`
+                ? `This is your first registration, so the one-time $${firstTimeRegistrationFee} uniform is included. The uniform is yours to keep and we hand it to you at the first practice.`
                 : "Welcome back! You've registered with us before."}
             </p>
             <p className="mt-3 text-sm">

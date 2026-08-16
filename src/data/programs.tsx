@@ -15,10 +15,14 @@ export const PRICING = {
   currency: "CAD",
   term: "2 months",
   priceLine: "$380 CAD / 2 months",
-  /** One-time fee charged only for first-time players */
+  /**
+   * One-time fee charged only for first-time players. This is the uniform —
+   * not an administrative registration charge. Word it that way everywhere:
+   * parents accept paying for a thing they keep, and resent a fee for nothing.
+   */
   registrationFee: "$75",
   registrationFeeLine:
-    "One-time $75 registration fee for first-time players (includes full uniform)",
+    "One-time $75 uniform fee for first-time players — full uniform, yours to keep, handed out at the first practice",
   paymentNote: "E-transfer accepted (Excelpro.Etransfer@gmail.com)",
 } as const;
 

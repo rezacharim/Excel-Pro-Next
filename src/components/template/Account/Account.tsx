@@ -335,7 +335,7 @@ const RenewModal = ({
               {info.isFirstTimePayment && (
                 <span className="text-gray-500">
                   {" "}
-                  ($380 + $75 one-time registration fee)
+                  ($380 for 2 months + $75 one-time uniform)
                 </span>
               )}
             </p>

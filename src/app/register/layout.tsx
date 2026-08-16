@@ -26,10 +26,10 @@ export const metadata: Metadata = {
     siteName: "Excel Pro Soccer Academy",
     images: [
       {
-        url: "https://www.excelproso.com/images/billboard/teams.webp",
+        url: "https://www.excelproso.com/images/og/og-default.jpg",
         width: 1200,
         height: 630,
-        alt: "Excel Pro Soccer Academy youth teams in Markham, Ontario",
+        alt: "Excel Pro Soccer Academy, Markham Ontario",
       },
     ],
   },

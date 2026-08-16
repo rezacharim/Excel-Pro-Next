@@ -39,10 +39,10 @@ export const metadata: Metadata = {
     locale: "en_US",
     images: [
       {
-        url: "/images/billboard/teams.webp",
+        url: "https://www.excelproso.com/images/og/og-default.jpg",
         width: 1200,
         height: 630,
-        alt: "Excel Pro Football Academy Training Programs",
+        alt: "Excel Pro Soccer Academy, Markham Ontario",
       },
     ],
   },
@@ -51,7 +51,7 @@ export const metadata: Metadata = {
     title: "Excel Pro Soccer Academy | Toronto",
     description:
       "Professional soccer training and development for youth players in Toronto.",
-    images: ["/images/billboard/teams.webp"],
+    images: ["/images/og/og-default.jpg"],
   },
   robots: {
     index: true,
@@ -154,7 +154,7 @@ export default async function Home() {
       "@type": "LocalBusiness",
       "@id": `${SITE_URL}/#localbusiness`,
       name: "Excel Pro Soccer Academy",
-      image: `${SITE_URL}/images/billboard/teams.webp`,
+      image: `${SITE_URL}/images/og/og-default.jpg`,
       priceRange: "$$",
       telephone: "+1-647-703-7821",
       email: "excelprosocceracademy@gmail.com",

@@ -17,6 +17,12 @@ import {
   XCircle,
 } from "lucide-react";
 
+import {
+  compressImage,
+  formatBytes,
+  MAX_UPLOAD_BYTES,
+} from "@/utils/compressImage";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 type AnnouncementCategory = "league" | "trial" | "news";
@@ -174,17 +180,26 @@ const Announcements: NextPage = () => {
    * Uploading puts the photo in the Gallery and selects it here, so a picture
    * used for an announcement is reusable rather than stranded.
    */
-  const handlePhotoUpload = async (file: File) => {
-    if (!file.type.startsWith("image/")) {
+  const handlePhotoUpload = async (rawFile: File) => {
+    if (!rawFile.type.startsWith("image/")) {
       showToast("error", "That file is not an image.");
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      showToast("error", "That photo is over 10MB. Please choose a smaller one.");
       return;
     }
     setIsUploading(true);
     try {
+      // Same limit as everywhere else: Vercel drops request bodies over 4.5MB
+      // before the server sees them, surfacing as an unexplained
+      // "Failed to fetch". Shrink the photo rather than let that happen.
+      const file = await compressImage(rawFile);
+      if (file.size > MAX_UPLOAD_BYTES) {
+        showToast(
+          "error",
+          `That photo is ${formatBytes(file.size)} and still too large after ` +
+            `resizing. Please save it as a JPEG and try again.`
+        );
+        setIsUploading(false);
+        return;
+      }
       const body = new FormData();
       body.append("file", file);
       body.append("title", file.name.replace(/\.[^.]+$/, ""));
@@ -193,7 +208,21 @@ const Announcements: NextPage = () => {
         headers: { Authorization: `Bearer ${savedToken}` },
         body,
       });
-      if (!response.ok) throw new Error("Upload failed");
+      if (!response.ok) {
+        // Show what the server actually said. "Upload failed" hid the one
+        // piece of information that makes the problem fixable — whether it
+        // was the size, the file type, or storage itself.
+        let detail = "";
+        try {
+          const problem = await response.json();
+          detail = problem?.message || problem?.error || "";
+        } catch {
+          detail = "";
+        }
+        throw new Error(
+          detail || `Upload failed (server returned ${response.status})`
+        );
+      }
       const created = await response.json();
       const url = created?.image_url || created?.data?.image_url;
       if (!url) throw new Error("Upload did not return an image URL");
@@ -202,9 +231,12 @@ const Announcements: NextPage = () => {
       fetchGallery();
       showToast("success", "Photo uploaded and selected");
     } catch (error) {
+      const raw = error instanceof Error ? error.message : "";
       showToast(
         "error",
-        error instanceof Error ? error.message : "Could not upload the photo"
+        /failed to fetch|networkerror|load failed/i.test(raw)
+          ? "The photo could not be sent — it is probably too large. Try a smaller file."
+          : raw || "Could not upload the photo"
       );
     } finally {
       setIsUploading(false);

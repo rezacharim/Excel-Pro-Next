@@ -28,6 +28,35 @@ const MAX_SLIDES = 8;
  * player-of-the-month images, then to a static team photo, when the gallery
  * is empty. Auto-rotates with manual arrows + dots.
  */
+
+/**
+ * Every image URL currently used by a coach — their card photo and every
+ * picture in their profile gallery. Returns an empty set if the API is
+ * unreachable, so a hiccup shows a slightly wrong slideshow rather than none.
+ */
+const coachPhotoUrls = async (): Promise<Set<string>> => {
+  const used = new Set<string>();
+  const api = process.env.NEXT_PUBLIC_API_URL;
+  if (!api) return used;
+  try {
+    const response = await fetch(`${api}/coaches`);
+    if (!response.ok) return used;
+    const coaches = await response.json();
+    if (!Array.isArray(coaches)) return used;
+    for (const coach of coaches) {
+      if (coach?.imageUrl) used.add(coach.imageUrl);
+      if (Array.isArray(coach?.photos)) {
+        for (const photo of coach.photos) {
+          if (photo?.url) used.add(photo.url);
+        }
+      }
+    }
+  } catch {
+    // Leave the set empty; the slideshow still works.
+  }
+  return used;
+};
+
 const Billboard = () => {
   const players = usePlayers();
   const [slides, setSlides] = useState<HeroSlide[]>(FALLBACK);
@@ -38,8 +67,18 @@ const Billboard = () => {
     (async () => {
       const data = await fetchAllImages();
       if (cancelled) return;
+
+      // Photos attached to a coach's profile are deliberately kept off the
+      // front page. Uploading a coach's career photos puts them in the same
+      // Gallery this slideshow reads from, so without this the eight newest
+      // uploads — someone's old team pictures — would silently replace the
+      // academy's action shots on the home page.
+      const coachOwned = await coachPhotoUrls();
+      if (cancelled) return;
+
       const gallery: HeroSlide[] = (Array.isArray(data) ? data : [])
         .filter((g: { image_url?: string }) => g?.image_url)
+        .filter((g: { image_url?: string }) => !coachOwned.has(g.image_url as string))
         .sort(
           (a: { created_at?: string }, b: { created_at?: string }) =>
             new Date(b.created_at ?? 0).getTime() -

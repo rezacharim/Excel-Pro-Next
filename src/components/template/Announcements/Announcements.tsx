@@ -5,19 +5,41 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { RefreshCw, XCircle } from "lucide-react";
 
-export type AnnouncementCategory = "league" | "trial" | "news";
+export type AnnouncementCategory =
+  | "league"
+  | "trial"
+  | "news"
+  | "match"
+  | "medal"
+  | "interview";
 
 export interface Announcement {
   id: number;
   title: string;
+  slug?: string | null;
   body: string;
   category: AnnouncementCategory;
+  fullBody?: string | null;
+  photos?: { url: string; caption?: string }[] | null;
+  eventDate?: string | null;
   ctaLabel: string | null;
   ctaUrl: string | null;
   imageUrl?: string | null;
   isActive: boolean;
   createdAt: string;
 }
+
+/**
+ * A post earns its own page once it has a full story or photos. A one-line
+ * registration notice does not — sending a parent to a page that just repeats
+ * the card wastes their click.
+ */
+const hasFullPost = (a: Announcement): boolean =>
+  Boolean(
+    a.slug &&
+      ((a.fullBody ?? "").trim().length > 0 ||
+        (a.photos ?? []).some((p) => p?.url))
+  );
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -37,6 +59,18 @@ const CATEGORY_BADGES: Record<
     label: "News",
     className: "bg-gray-200 text-gray-700",
   },
+  match: {
+    label: "Match Report",
+    className: "bg-[#020022] text-white",
+  },
+  medal: {
+    label: "Awards",
+    className: "bg-amber-500 text-white",
+  },
+  interview: {
+    label: "Interview",
+    className: "bg-emerald-600 text-white",
+  },
 };
 
 /**
@@ -48,6 +82,9 @@ const PRIORITY: Record<AnnouncementCategory, number> = {
   league: 0,
   trial: 1,
   news: 2,
+  match: 3,
+  medal: 3,
+  interview: 3,
 };
 
 const byImportance = (a: Announcement, b: Announcement) =>
@@ -59,6 +96,9 @@ const FALLBACK_IMAGE: Record<AnnouncementCategory, string> = {
   league: "/images/billboard/teams.webp",
   trial: "/images/billboard/Banner2.webp",
   news: "/images/billboard/Banner3.webp",
+  match: "/images/billboard/Banner3.webp",
+  medal: "/images/billboard/Banner2.webp",
+  interview: "/images/billboard/Banner3.webp",
 };
 
 const formatDate = (iso: string): string => {
@@ -266,10 +306,12 @@ const Announcements = () => {
                   <div className="flex flex-wrap items-center gap-3 mb-3">
                     <CategoryBadge category={announcement.category} />
                     <time
-                      dateTime={announcement.createdAt}
+                      dateTime={announcement.eventDate || announcement.createdAt}
                       className="text-sm text-gray-500"
                     >
-                      {formatDate(announcement.createdAt)}
+                      {/* For a match report the date of the match matters more
+                          than the day someone got round to writing it up. */}
+                      {formatDate(announcement.eventDate || announcement.createdAt)}
                     </time>
                   </div>
                   <h2 className="text-xl md:text-2xl font-bold text-gray-900">
@@ -278,6 +320,18 @@ const Announcements = () => {
                   <p className="mt-3 text-gray-600 leading-relaxed whitespace-pre-line flex-1">
                     {announcement.body}
                   </p>
+                  {hasFullPost(announcement) && (
+                    <Link
+                      href={`/announcements/${announcement.slug}`}
+                      className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                    >
+                      {announcement.photos?.some((p) => p?.url) &&
+                      !(announcement.fullBody ?? "").trim()
+                        ? "See the photos"
+                        : "Read the full story"}
+                      <span aria-hidden>&rarr;</span>
+                    </Link>
+                  )}
                   <AnnouncementCta announcement={announcement} />
                 </div>
               </motion.article>

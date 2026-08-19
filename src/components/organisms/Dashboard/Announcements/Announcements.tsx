@@ -25,13 +25,28 @@ import {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-type AnnouncementCategory = "league" | "trial" | "news";
+type AnnouncementCategory =
+  | "league"
+  | "trial"
+  | "news"
+  | "match"
+  | "medal"
+  | "interview";
+
+interface PostPhoto {
+  url: string;
+  caption?: string;
+}
 
 interface Announcement {
   id: number;
   title: string;
+  slug: string | null;
   body: string;
   category: AnnouncementCategory;
+  fullBody: string | null;
+  photos: PostPhoto[] | null;
+  eventDate: string | null;
   ctaLabel: string | null;
   ctaUrl: string | null;
   imageUrl: string | null;
@@ -50,6 +65,9 @@ interface AnnouncementFormState {
   title: string;
   category: AnnouncementCategory;
   body: string;
+  fullBody: string;
+  photos: PostPhoto[];
+  eventDate: string;
   ctaLabel: string;
   ctaUrl: string;
   imageUrl: string;
@@ -70,6 +88,9 @@ const CATEGORY_OPTIONS: { value: AnnouncementCategory; label: string }[] = [
   { value: "league", label: "League Registration" },
   { value: "trial", label: "Trials" },
   { value: "news", label: "News" },
+  { value: "match", label: "Match Report" },
+  { value: "medal", label: "Awards & Medals" },
+  { value: "interview", label: "Interview" },
 ];
 
 const CATEGORY_BADGES: Record<
@@ -79,12 +100,18 @@ const CATEGORY_BADGES: Record<
   league: { label: "League Registration", className: "bg-[#E43125] text-white" },
   trial: { label: "Trials", className: "bg-[#020022] text-white" },
   news: { label: "News", className: "bg-gray-200 text-gray-700" },
+  match: { label: "Match Report", className: "bg-[#020022] text-white" },
+  medal: { label: "Awards", className: "bg-amber-500 text-white" },
+  interview: { label: "Interview", className: "bg-emerald-600 text-white" },
 };
 
 const EMPTY_FORM: AnnouncementFormState = {
   title: "",
   category: "news",
   body: "",
+  fullBody: "",
+  photos: [],
+  eventDate: "",
   ctaLabel: "",
   ctaUrl: "",
   imageUrl: "",
@@ -111,6 +138,9 @@ const Announcements: NextPage = () => {
   const [toast, setToast] = useState<ToastState | null>(null);
   const [gallery, setGallery] = useState<GalleryImage[]>([]);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  // The same picker fills the header photo and the post's gallery, so it has
+  // to remember which one opened it.
+  const [pickerTarget, setPickerTarget] = useState<"main" | "post">("main");
   const [isUploading, setIsUploading] = useState(false);
 
   const savedToken = Cookies.get("auth_token");
@@ -226,7 +256,11 @@ const Announcements: NextPage = () => {
       const created = await response.json();
       const url = created?.image_url || created?.data?.image_url;
       if (!url) throw new Error("Upload did not return an image URL");
-      setForm((f) => ({ ...f, imageUrl: url }));
+      setForm((f) =>
+        pickerTarget === "main"
+          ? { ...f, imageUrl: url }
+          : { ...f, photos: [...f.photos, { url }] }
+      );
       setGalleryOpen(false);
       fetchGallery();
       showToast("success", "Photo uploaded and selected");
@@ -253,6 +287,9 @@ const Announcements: NextPage = () => {
       title: announcement.title,
       category: announcement.category,
       body: announcement.body,
+      fullBody: announcement.fullBody || "",
+      photos: Array.isArray(announcement.photos) ? announcement.photos : [],
+      eventDate: announcement.eventDate || "",
       ctaLabel: announcement.ctaLabel || "",
       ctaUrl: announcement.ctaUrl || "",
       imageUrl: announcement.imageUrl || "",
@@ -277,6 +314,14 @@ const Announcements: NextPage = () => {
       title: form.title.trim(),
       category: form.category,
       body: form.body.trim(),
+      fullBody: form.fullBody.trim(),
+      photos: form.photos
+        .filter((p) => p.url)
+        .map((p) => ({
+          url: p.url,
+          ...(p.caption?.trim() ? { caption: p.caption.trim() } : {}),
+        })),
+      eventDate: form.eventDate || null,
       ctaLabel: form.ctaLabel.trim() || null,
       ctaUrl: form.ctaUrl.trim() || null,
       imageUrl: form.imageUrl.trim() || null,
@@ -638,7 +683,10 @@ const Announcements: NextPage = () => {
                   <div className="flex flex-wrap items-center gap-3">
                     <button
                       type="button"
-                      onClick={() => setGalleryOpen(true)}
+                      onClick={() => {
+                        setPickerTarget("main");
+                        setGalleryOpen(true);
+                      }}
                       className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50"
                     >
                       <ImageIcon size={16} />
@@ -673,7 +721,9 @@ const Announcements: NextPage = () => {
                   <div className="mt-3 border border-gray-200 rounded-lg p-3 max-h-64 overflow-y-auto">
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-sm font-medium text-gray-700">
-                        Pick a photo
+                        {pickerTarget === "main"
+                          ? "Pick the header photo"
+                          : "Click photos to add them to the post — pick several"}
                       </p>
                       <button
                         type="button"
@@ -694,10 +744,39 @@ const Announcements: NextPage = () => {
                             key={image.id}
                             type="button"
                             onClick={() => {
-                              setForm((f) => ({ ...f, imageUrl: image.image_url }));
-                              setGalleryOpen(false);
+                              if (pickerTarget === "main") {
+                                setForm((f) => ({
+                                  ...f,
+                                  imageUrl: image.image_url,
+                                }));
+                                setGalleryOpen(false);
+                                return;
+                              }
+                              // Multi-select: clicking an already-added photo
+                              // takes it out again, and the picker stays open
+                              // so a whole medal day can go in at once.
+                              setForm((f) => ({
+                                ...f,
+                                photos: f.photos.some(
+                                  (p) => p.url === image.image_url
+                                )
+                                  ? f.photos.filter(
+                                      (p) => p.url !== image.image_url
+                                    )
+                                  : [...f.photos, { url: image.image_url }],
+                              }));
                             }}
-                            className="relative aspect-video rounded-md overflow-hidden border border-gray-200 hover:ring-2 hover:ring-primary"
+                            className={`relative aspect-video rounded-md overflow-hidden border-2 hover:ring-2 hover:ring-primary ${
+                              (
+                                pickerTarget === "main"
+                                  ? form.imageUrl === image.image_url
+                                  : form.photos.some(
+                                      (p) => p.url === image.image_url
+                                    )
+                              )
+                                ? "border-[#E43125]"
+                                : "border-gray-200"
+                            }`}
                             title={image.title}
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -706,12 +785,195 @@ const Announcements: NextPage = () => {
                               alt={image.title}
                               className="w-full h-full object-cover"
                             />
+                            {pickerTarget === "post" &&
+                              form.photos.some(
+                                (p) => p.url === image.image_url
+                              ) && (
+                                <span className="absolute top-1 right-1 bg-[#E43125] text-white rounded-full p-0.5">
+                                  <CheckCircle2 size={14} />
+                                </span>
+                              )}
                           </button>
                         ))}
                       </div>
                     )}
                   </div>
                 )}
+              </div>
+
+              {/* Full post — the story and photo gallery on its own page */}
+              <div className="border-t border-gray-100 pt-4">
+                <h3 className="text-sm font-semibold text-[#020022]">
+                  Full post page
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5 mb-3">
+                  Fill this in for a match report, a medal day or an interview.
+                  The card above gets a &ldquo;Read the full story&rdquo; link
+                  to a page of its own. Leave it empty for a short notice and
+                  nothing changes.
+                </p>
+
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Date it happened
+                </label>
+                <input
+                  type="date"
+                  value={form.eventDate}
+                  onChange={(e) =>
+                    setForm({ ...form, eventDate: e.target.value })
+                  }
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                />
+                <p className="text-xs text-gray-400 mt-1 mb-4">
+                  The day of the match or the presentation. Shown instead of
+                  the day you posted it. Leave blank if they are the same.
+                </p>
+
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  The full story
+                </label>
+                <textarea
+                  value={form.fullBody}
+                  onChange={(e) =>
+                    setForm({ ...form, fullBody: e.target.value })
+                  }
+                  rows={10}
+                  placeholder={
+                    "How the game went, who scored, what the coaches said.\n\nLeave a blank line between paragraphs.\n\n## Use two hashes for a heading\n- Use a dash for a bullet point"
+                  }
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  A blank line starts a new paragraph. ## makes a heading and -
+                  makes a bullet.
+                </p>
+
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Photos{form.photos.length ? ` (${form.photos.length})` : ""}
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPickerTarget("post");
+                          setGalleryOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-200 rounded-md hover:bg-gray-50"
+                      >
+                        <ImageIcon size={14} />
+                        Add from gallery
+                      </button>
+                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-200 rounded-md hover:bg-gray-50 cursor-pointer">
+                        {isUploading ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Upload size={14} />
+                        )}
+                        Upload
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={isUploading}
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            setPickerTarget("post");
+                            if (file) handlePhotoUpload(file);
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  {form.photos.length === 0 ? (
+                    <p className="text-sm text-gray-400 py-6 text-center border border-dashed border-gray-200 rounded-lg">
+                      No photos yet. A medal day or a match can have as many as
+                      you like.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {form.photos.map((photo, index) => (
+                        <div
+                          key={`${photo.url}-${index}`}
+                          className="flex items-center gap-3 p-2 border border-gray-200 rounded-lg"
+                        >
+                          <div className="w-14 h-14 rounded bg-gray-100 overflow-hidden flex-shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={photo.url}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <input
+                            value={photo.caption ?? ""}
+                            onChange={(e) => {
+                              const next = [...form.photos];
+                              next[index] = {
+                                ...next[index],
+                                caption: e.target.value,
+                              };
+                              setForm({ ...form, photos: next });
+                            }}
+                            placeholder="Caption (optional) — e.g. U13 receiving their medals"
+                            className="flex-1 px-3 py-2 border border-gray-200 rounded-md text-sm"
+                          />
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button
+                              type="button"
+                              title="Move up"
+                              disabled={index === 0}
+                              onClick={() => {
+                                const next = [...form.photos];
+                                [next[index - 1], next[index]] = [
+                                  next[index],
+                                  next[index - 1],
+                                ];
+                                setForm({ ...form, photos: next });
+                              }}
+                              className="p-1.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              title="Move down"
+                              disabled={index === form.photos.length - 1}
+                              onClick={() => {
+                                const next = [...form.photos];
+                                [next[index], next[index + 1]] = [
+                                  next[index + 1],
+                                  next[index],
+                                ];
+                                setForm({ ...form, photos: next });
+                              }}
+                              className="p-1.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30"
+                            >
+                              ↓
+                            </button>
+                            <button
+                              type="button"
+                              title="Remove"
+                              onClick={() =>
+                                setForm({
+                                  ...form,
+                                  photos: form.photos.filter(
+                                    (_, i) => i !== index
+                                  ),
+                                })
+                              }
+                              className="p-1.5 rounded text-gray-500 hover:bg-red-50 hover:text-[#E43125]"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <label className="flex items-center gap-2 text-sm text-gray-700">

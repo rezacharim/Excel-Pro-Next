@@ -1,15 +1,25 @@
-import Image from "next/image";
 import Link from "next/link";
+import NewsSlider, { type NewsCard } from "./NewsSlider";
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
-type AnnouncementCategory = "league" | "trial" | "news";
+type AnnouncementCategory =
+  | "league"
+  | "trial"
+  | "news"
+  | "match"
+  | "medal"
+  | "interview";
 
 interface Announcement {
   id: number;
   title: string;
+  slug?: string | null;
   body: string;
   category: AnnouncementCategory;
+  fullBody?: string | null;
+  photos?: { url: string; caption?: string }[] | null;
+  eventDate?: string | null;
   ctaLabel: string | null;
   ctaUrl: string | null;
   imageUrl?: string | null;
@@ -18,9 +28,9 @@ interface Announcement {
 }
 
 /**
- * Fallback image per category, used when an announcement has no photo of
- * its own. A picture is optional on purpose: requiring one every time is how
- * a news section quietly stops being updated.
+ * Fallback image per category, used when a post has no photo of its own. A
+ * picture is optional on purpose: requiring one every time is how a news
+ * section quietly stops being updated.
  */
 const CATEGORY: Record<
   AnnouncementCategory,
@@ -41,6 +51,21 @@ const CATEGORY: Record<
     image: "/images/billboard/Banner3.webp",
     badge: "bg-gray-800 text-white",
   },
+  match: {
+    label: "Match Report",
+    image: "/images/billboard/Banner3.webp",
+    badge: "bg-[#020022] text-white",
+  },
+  medal: {
+    label: "Awards",
+    image: "/images/billboard/Banner2.webp",
+    badge: "bg-amber-500 text-white",
+  },
+  interview: {
+    label: "Interview",
+    image: "/images/billboard/Banner3.webp",
+    badge: "bg-emerald-600 text-white",
+  },
 };
 
 const excerpt = (body: string, max = 150) => {
@@ -56,6 +81,14 @@ const formatDate = (iso: string) =>
     year: "numeric",
   });
 
+/** A post earns its own page once it has a full story or photos. */
+const hasFullPost = (a: Announcement): boolean =>
+  Boolean(
+    a.slug &&
+      ((a.fullBody ?? "").trim().length > 0 ||
+        (a.photos ?? []).some((p) => p?.url))
+  );
+
 const getAnnouncements = async (): Promise<Announcement[]> => {
   try {
     const res = await fetch(`${API}/announcements`, {
@@ -70,23 +103,53 @@ const getAnnouncements = async (): Promise<Announcement[]> => {
   }
 };
 
+/**
+ * Home-page news. Fetched on the server so the headlines are in the HTML for
+ * Google, then handed to a client component that slides through them.
+ */
 const LatestNews = async () => {
   const all = await getAnnouncements();
   if (all.length === 0) return null;
 
-  // League and trials outrank general news — they are the ones with a deadline.
+  // League and trials outrank the rest — they are the ones with a deadline.
   const rank: Record<AnnouncementCategory, number> = {
     league: 0,
     trial: 1,
     news: 2,
+    match: 3,
+    medal: 3,
+    interview: 3,
   };
-  const items = [...all]
+
+  const items: NewsCard[] = [...all]
     .sort(
       (a, b) =>
         rank[a.category] - rank[b.category] ||
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        new Date(b.eventDate || b.createdAt).getTime() -
+          new Date(a.eventDate || a.createdAt).getTime()
     )
-    .slice(0, 3);
+    .slice(0, 6)
+    .map((a) => {
+      const meta = CATEGORY[a.category] ?? CATEGORY.news;
+      return {
+        id: a.id,
+        // A post with a page of its own wins; otherwise send them where the
+        // announcement points, and failing that to the full list.
+        href: hasFullPost(a)
+          ? `/announcements/${a.slug}`
+          : a.ctaUrl || "/announcements",
+        title: a.title,
+        excerpt: excerpt(a.body),
+        // For a match report the date of the match matters more than the day
+        // someone got round to writing it up.
+        date: formatDate(a.eventDate || a.createdAt),
+        image: a.imageUrl || meta.image,
+        remoteImage: Boolean(a.imageUrl),
+        badgeLabel: meta.label,
+        badgeClass: meta.badge,
+        ctaLabel: hasFullPost(a) ? "Read the full story" : a.ctaLabel,
+      };
+    });
 
   return (
     <section className="mx-4 my-16 sm:my-24">
@@ -108,64 +171,7 @@ const LatestNews = async () => {
           </Link>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {items.map((a) => {
-            const meta = CATEGORY[a.category] ?? CATEGORY.news;
-            return (
-              <article
-                key={a.id}
-                className="group flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-200 transition hover:shadow-lg"
-              >
-                <div className="relative h-44 w-full overflow-hidden">
-                  <Image
-                    src={a.imageUrl || meta.image}
-                    alt=""
-                    fill
-                    sizes="(max-width: 768px) 100vw, 33vw"
-                    className="object-cover transition duration-500 group-hover:scale-105"
-                    unoptimized={Boolean(a.imageUrl)}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
-                  <span
-                    className={`absolute left-4 top-4 rounded-full px-3 py-1 text-xs font-bold ${meta.badge}`}
-                  >
-                    {meta.label}
-                  </span>
-                </div>
-
-                <div className="flex flex-1 flex-col p-6">
-                  <p className="text-xs text-gray-500">
-                    {formatDate(a.createdAt)}
-                  </p>
-                  <h3 className="mt-2 text-lg font-bold leading-snug text-[#020022]">
-                    {a.title}
-                  </h3>
-                  <p className="mt-3 flex-1 text-sm leading-relaxed text-gray-600">
-                    {excerpt(a.body)}
-                  </p>
-
-                  <div className="mt-5">
-                    {a.ctaUrl ? (
-                      <Link
-                        href={a.ctaUrl}
-                        className="inline-block rounded-lg bg-[#E43125] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#c4291f]"
-                      >
-                        {a.ctaLabel || "Read more"}
-                      </Link>
-                    ) : (
-                      <Link
-                        href="/announcements"
-                        className="text-sm font-semibold text-[#E43125] hover:underline"
-                      >
-                        Read more →
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
+        <NewsSlider items={items} />
       </div>
     </section>
   );

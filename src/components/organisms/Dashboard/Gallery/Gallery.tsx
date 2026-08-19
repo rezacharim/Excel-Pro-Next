@@ -55,6 +55,48 @@ interface ToastState {
 const Gallery: NextPage = () => {
   // Use custom hooks for state management
   const token = Cookies.get("auth_token")!;
+  // Ids currently being toggled, so a slow request cannot be double-clicked.
+  const [homeSaving, setHomeSaving] = useState<Set<string>>(new Set());
+  // Local overrides, so the star flips the moment it is clicked rather than
+  // after a refetch.
+  const [homeFlags, setHomeFlags] = useState<Record<string, boolean>>({});
+
+  const isOnHome = (item: GalleryItem): boolean =>
+    homeFlags[item.id] ?? Boolean(item.show_on_home);
+
+  /**
+   * Choose whether a photo appears in the home page slideshow. With none
+   * chosen the front page falls back to the newest uploads, so this is opt-in
+   * rather than something that has to be maintained.
+   */
+  const toggleShowOnHome = async (item: GalleryItem) => {
+    const next = !isOnHome(item);
+    setHomeFlags((f) => ({ ...f, [item.id]: next }));
+    setHomeSaving((s) => new Set(s).add(item.id));
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/gallery/${item.id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ show_on_home: next }),
+        }
+      );
+      if (!response.ok) throw new Error("Could not save");
+    } catch {
+      // Put the star back where it was; nothing was saved.
+      setHomeFlags((f) => ({ ...f, [item.id]: !next }));
+    } finally {
+      setHomeSaving((s) => {
+        const copy = new Set(s);
+        copy.delete(item.id);
+        return copy;
+      });
+    }
+  };
 
   const {
     filteredItems,
@@ -598,7 +640,24 @@ const Gallery: NextPage = () => {
                   <span>{getItemType(item.mime_type)}</span>
                   <span>{formatFileSize(item.file_size)}</span>
                 </div>
-                <div className="mt-3 pt-3 border-t border-gray-100 flex justify-center">
+                <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => toggleShowOnHome(item)}
+                    disabled={homeSaving.has(item.id)}
+                    title={
+                      isOnHome(item)
+                        ? "Showing on the home page — click to remove"
+                        : "Show this photo on the home page"
+                    }
+                    className={`flex items-center gap-1.5 text-sm rounded-md px-2 py-1 transition-colors disabled:opacity-50 ${
+                      isOnHome(item)
+                        ? "text-[#E43125] font-medium"
+                        : "text-gray-400 hover:text-gray-600"
+                    }`}
+                  >
+                    {isOnHome(item) ? "★" : "☆"}
+                    {isOnHome(item) ? "On home page" : "Show on home"}
+                  </button>
                   <button
                     onClick={() => openDeleteModal(item)}
                     className="text-red-500 flex items-center gap-1 text-sm"

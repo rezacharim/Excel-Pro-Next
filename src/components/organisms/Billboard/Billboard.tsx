@@ -76,9 +76,21 @@ const Billboard = () => {
       const coachOwned = await coachPhotoUrls();
       if (cancelled) return;
 
-      const gallery: HeroSlide[] = (Array.isArray(data) ? data : [])
+      const usable = (Array.isArray(data) ? data : [])
         .filter((g: { image_url?: string }) => g?.image_url)
-        .filter((g: { image_url?: string }) => !coachOwned.has(g.image_url as string))
+        .filter(
+          (g: { image_url?: string }) => !coachOwned.has(g.image_url as string)
+        );
+
+      // Photos ticked "Show on home page" in Dashboard > Gallery win. If none
+      // are ticked we fall back to the newest uploads, so the front page is
+      // never empty just because nobody has chosen yet.
+      const chosen = usable.filter(
+        (g: { show_on_home?: boolean }) => g?.show_on_home
+      );
+      const pool = chosen.length > 0 ? chosen : usable;
+
+      const gallery: HeroSlide[] = pool
         .sort(
           (a: { created_at?: string }, b: { created_at?: string }) =>
             new Date(b.created_at ?? 0).getTime() -

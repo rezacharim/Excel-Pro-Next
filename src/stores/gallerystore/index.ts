@@ -10,6 +10,8 @@ export interface GalleryItem {
   mime_type: string;
   file_size: number;
   caption: string | null;
+  /** Ticked photos are the ones shown in the home page slideshow. */
+  show_on_home?: boolean;
   created_at?: string;
   updated_at?: string;
 }

@@ -220,7 +220,7 @@ const FALLBACK: HeroSlide[] = [
 ];
 
 const ROTATE_MS = 5000;
-const MAX_PHOTO_SLIDES = 6;
+const MAX_PHOTO_SLIDES = 10;
 const MAX_PROMO_SLIDES = 3;
 
 /**

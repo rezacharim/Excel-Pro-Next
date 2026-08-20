@@ -11,7 +11,11 @@ import InstagramFeed from "@/components/organisms/InstagramFeed/InstagramFeed";
 import { PlayerProvider } from "@/context/PlayerContext/PlayerContext";
 import { fetchAllPlayerMonth } from "@/services/getPlayerMonth";
 import NextGameBoard from "@/components/organisms/NextGame/NextGameBoard";
-import { getTeams, getUpcomingFixtures } from "@/services/fixtures";
+import {
+  getRecentFixtures,
+  getTeams,
+  getUpcomingFixtures,
+} from "@/services/fixtures";
 import { getSiteText } from "@/services/siteText";
 
 export const revalidate = 30;
@@ -20,9 +24,10 @@ const Landing = async () => {
   
   // Fetched together so a slow fixture list does not hold up the player of
   // the month, and vice versa.
-  const [players, fixtures, teams, siteText] = await Promise.all([
+  const [players, fixtures, results, teams, siteText] = await Promise.all([
     fetchAllPlayerMonth(),
     getUpcomingFixtures(12),
+    getRecentFixtures(4),
     getTeams(),
     getSiteText(),
   ]);
@@ -40,7 +45,12 @@ const Landing = async () => {
       {/* The next game for each team, with that team's photo, and the games
           coming up underneath. Renders nothing at all when there are no
           fixtures, so an out-of-season home page does not carry an empty box. */}
-      <NextGameBoard fixtures={fixtures} teams={teams} text={siteText} />
+      <NextGameBoard
+        fixtures={fixtures}
+        results={results}
+        teams={teams}
+        text={siteText}
+      />
       <HeroSection />
       <Summary />
       <SummeryServices />

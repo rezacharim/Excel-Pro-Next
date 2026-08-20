@@ -35,7 +35,7 @@ const TopBar = () => {
           
           {/* Right side - Social Media Icons */}
           <div className="flex items-center gap-4">
-            <Link href="https://www.instagram.com/excel.pro.soccer.academy?igsh=MWp5MjRvZWFvN3Jlaw==" aria-label="Instagram" className="hover:text-secondary-focus transition-colors">
+            <Link href="https://www.instagram.com/excelprosoccer" aria-label="Instagram" className="hover:text-secondary-focus transition-colors">
               <InstagramIcon size={18} />
             </Link>
           </div>

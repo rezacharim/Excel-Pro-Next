@@ -117,7 +117,7 @@ export default async function Home() {
       },
       sameAs: [
         // TODO: Reza to confirm the official Instagram handle
-        "https://www.instagram.com/excel.pro.soccer.academy",
+        "https://www.instagram.com/excelprosoccer",
       ],
     },
     {

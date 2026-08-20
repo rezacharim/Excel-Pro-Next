@@ -5,20 +5,223 @@ import HeroSideCard from "../../molecules/HeroSideCard/HeroSideCard";
 import IndicatorDots from "../../molecules/IndicatorDots/IndicatorDots";
 import ArrowButton from "../../atoms/ArrowButton/ArrowButton";
 import { usePlayers } from "@/context/PlayerContext/PlayerContext";
+import Link from "next/link";
 import { fetchAllImages } from "@/services/getAllImages";
 
 interface HeroSlide {
   id: string;
   image_url: string;
   title?: string;
+  /** Set on the two slides pulled from announcements; photos have none. */
+  href?: string;
+  badge?: string;
+  headline?: string;
+  subtext?: string;
+  ctaLabel?: string;
+  /** Short live facts — deadline, spots left. League slide only. */
+  urgency?: string[];
 }
+
+interface PromoPost {
+  id: number;
+  title: string;
+  slug?: string | null;
+  body: string;
+  category: string;
+  fullBody?: string | null;
+  photos?: { url: string }[] | null;
+  eventDate?: string | null;
+  ctaLabel: string | null;
+  ctaUrl: string | null;
+  imageUrl?: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+const REGISTRATION_CATEGORIES = ["league", "trial"];
+const STORY_CATEGORIES = ["news", "match", "medal", "interview"];
+
+const PROMO_FALLBACK_IMAGE: Record<string, string> = {
+  league: "/images/billboard/teams.webp",
+  trial: "/images/billboard/Banner2.webp",
+  medal: "/images/billboard/Banner2.webp",
+};
+
+const PROMO_BADGE: Record<string, string> = {
+  league: "League Registration",
+  trial: "Open Trials",
+  news: "Academy News",
+  match: "Match Report",
+  medal: "Awards",
+  interview: "Interview",
+};
+
+/** Where a slide should send someone who clicks it. */
+const promoHref = (post: PromoPost): string => {
+  const hasPage =
+    post.slug &&
+    ((post.fullBody ?? "").trim().length > 0 ||
+      (post.photos ?? []).some((p) => p?.url));
+  if (hasPage) return `/announcements/${post.slug}`;
+  return post.ctaUrl || "/announcements";
+};
+
+interface SeasonAgeGroup {
+  ageGroup: string;
+  spotsLeft: number;
+  label: string;
+  tone: "ok" | "medium" | "low" | "full";
+  show: boolean;
+}
+
+interface PublicSeason {
+  registrationOpen: boolean;
+  firstPaymentDue: string | null;
+  lateFeeFrom: string | null;
+  isLateNow: boolean;
+  recentSignups: number;
+  spotsDisplay: string;
+  ageGroups: SeasonAgeGroup[];
+}
+
+/** Whole days from today to a yyyy-mm-dd date, ignoring time of day. */
+const daysUntil = (date: string): number => {
+  const target = new Date(`${date}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - today.getTime()) / 86400000);
+};
+
+/**
+ * Live facts for the league slide: how long is left to pay, and which age
+ * group is closest to full.
+ *
+ * Every number here comes from `GET /league/season` — the same figures the
+ * registration page shows. Nothing is invented and nothing is padded: if the
+ * season is set to hide spot counts, or no group is actually running low, the
+ * pill simply doesn't appear. A fake "only 2 left!" on a page a parent will
+ * check again next week costs more trust than it buys signups.
+ */
+const leagueUrgency = async (): Promise<string[]> => {
+  const api = process.env.NEXT_PUBLIC_API_URL;
+  if (!api) return [];
+  try {
+    const response = await fetch(`${api}/league/season`);
+    if (!response.ok) return [];
+    const season: PublicSeason = await response.json();
+    if (!season?.registrationOpen) return [];
+
+    const facts: string[] = [];
+
+    const due = season.lateFeeFrom || season.firstPaymentDue;
+    if (due) {
+      const days = daysUntil(due);
+      if (season.isLateNow || days < 0) {
+        facts.push("Late fee now applies");
+      } else if (days === 0) {
+        facts.push("First payment due today");
+      } else if (days <= 21) {
+        facts.push(`First payment due in ${days} day${days === 1 ? "" : "s"}`);
+      }
+    }
+
+    // The tightest group is the honest one to name. "Spots available" and
+    // "Filling fast" are not urgent enough to earn hero space.
+    const tight = (season.ageGroups ?? [])
+      .filter((g) => g.show && (g.tone === "low" || g.tone === "full"))
+      .sort((a, b) => a.spotsLeft - b.spotsLeft)[0];
+    if (tight) facts.push(`${tight.ageGroup}: ${tight.label.toLowerCase()}`);
+
+    // Only when there is nothing sharper to say. A number that grows is better
+    // social proof than a big "spots left", which reads as "no rush".
+    if (facts.length < 2 && season.recentSignups >= 3) {
+      facts.push(`${season.recentSignups} families joined this week`);
+    }
+
+    return facts.slice(0, 2);
+  } catch {
+    return [];
+  }
+};
+
+const firstLine = (body: string, max = 110): string => {
+  const line = (body ?? "").split(/\n\s*\n/)[0].replace(/\s+/g, " ").trim();
+  return line.length > max ? `${line.slice(0, max).trimEnd()}…` : line;
+};
+
+/**
+ * Turns the newest registration notice and the newest story into hero slides.
+ *
+ * The front page's most valuable space was showing photographs and nothing
+ * else — a parent landing there could not tell that registration was open or
+ * that the U13s had won anything. These two slides keep themselves current:
+ * post a match report and it appears on the home page without anyone
+ * remembering to change a banner.
+ */
+const buildPromoSlides = async (): Promise<HeroSlide[]> => {
+  const api = process.env.NEXT_PUBLIC_API_URL;
+  if (!api) return [];
+  try {
+    const response = await fetch(`${api}/announcements`);
+    if (!response.ok) return [];
+    const data = await response.json();
+    if (!Array.isArray(data)) return [];
+
+    const live: PromoPost[] = data
+      .filter((p: PromoPost) => p?.isActive)
+      .sort(
+        (a: PromoPost, b: PromoPost) =>
+          new Date(b.eventDate || b.createdAt).getTime() -
+          new Date(a.eventDate || a.createdAt).getTime()
+      );
+
+    const pick = (categories: string[]) =>
+      live.find((p) => categories.includes(p.category));
+
+    // League and trials each get their own slide rather than competing for one,
+    // so the hero cycles registration -> trials -> latest story instead of
+    // always showing whichever of the two happened to be posted last.
+    const chosen = [
+      pick(["league"]),
+      pick(["trial"]),
+      pick(STORY_CATEGORIES),
+    ].filter(Boolean) as PromoPost[];
+
+    // Only the league slide gets live figures — trials and stories have no
+    // season behind them, so there is nothing truthful to count.
+    const urgency = chosen.some((p) => p.category === "league")
+      ? await leagueUrgency()
+      : [];
+
+    return chosen.map((post) => ({
+      id: `promo-${post.id}`,
+      image_url:
+        post.imageUrl ||
+        PROMO_FALLBACK_IMAGE[post.category] ||
+        "/images/billboard/Banner3.webp",
+      title: post.title,
+      href: promoHref(post),
+      badge: PROMO_BADGE[post.category] ?? "Academy News",
+      headline: post.title,
+      subtext: firstLine(post.body),
+      ctaLabel: REGISTRATION_CATEGORIES.includes(post.category)
+        ? post.ctaLabel || "Register now"
+        : "Read the full story",
+      urgency: post.category === "league" ? urgency : undefined,
+    }));
+  } catch {
+    // The hero must never fail because the news feed is unavailable.
+    return [];
+  }
+};
 
 const FALLBACK: HeroSlide[] = [
   { id: "fallback", image_url: "/images/billboard/teams2.jpeg", title: "" },
 ];
 
 const ROTATE_MS = 5000;
-const MAX_SLIDES = 8;
+const MAX_PHOTO_SLIDES = 6;
+const MAX_PROMO_SLIDES = 3;
 
 /**
  * Home-page hero slideshow.
@@ -96,7 +299,7 @@ const Billboard = () => {
             new Date(b.created_at ?? 0).getTime() -
             new Date(a.created_at ?? 0).getTime()
         )
-        .slice(0, MAX_SLIDES)
+        .slice(0, MAX_PHOTO_SLIDES)
         .map(
           (g: { id?: string; image_url: string; title?: string }, i: number) => ({
             id: g.id ?? `g-${i}`,
@@ -104,8 +307,15 @@ const Billboard = () => {
             title: g.title,
           })
         );
-      if (gallery.length > 0) {
-        setSlides(gallery);
+      const promos = (await buildPromoSlides()).slice(0, MAX_PROMO_SLIDES);
+      if (cancelled) return;
+
+      // Registration and the newest story lead, then the photos. The two
+      // promos carry a deadline or a result; a photograph carries neither.
+      const combined = [...promos, ...gallery];
+
+      if (combined.length > 0) {
+        setSlides(combined);
       } else if (players.length > 0) {
         setSlides(
           players.map((p, i) => ({
@@ -149,8 +359,14 @@ const Billboard = () => {
           {slides.map((slide, index) => (
             <div
               key={slide.id}
+              // Every slide is stacked at inset-0 and only faded out, so a
+              // hidden slide still sits on top of the visible one and would
+              // swallow every click aimed at its link. Invisible slides take
+              // no pointer events.
               className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
-                index === current ? "opacity-100" : "opacity-0"
+                index === current
+                  ? "opacity-100"
+                  : "pointer-events-none opacity-0"
               }`}
               aria-hidden={index !== current}
             >
@@ -164,6 +380,50 @@ const Billboard = () => {
                 className="h-full w-full object-cover"
                 loading={index === 0 ? "eager" : "lazy"}
               />
+              {/* Only the two slides built from announcements carry text. A
+                  gallery photo's title is a filename, which looked like a
+                  mistake when drawn over the front page. */}
+              {slide.href && (
+                <Link
+                  href={slide.href}
+                  className="absolute inset-0 flex flex-col justify-end"
+                  tabIndex={index === current ? 0 : -1}
+                >
+                  <div className="bg-gradient-to-t from-black/85 via-black/45 to-transparent p-6 sm:p-10">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {slide.badge && (
+                        <span className="inline-block rounded-full bg-[#E43125] px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
+                          {slide.badge}
+                        </span>
+                      )}
+                      {slide.urgency?.map((fact) => (
+                        <span
+                          key={fact}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/30 backdrop-blur-sm"
+                        >
+                          <span
+                            aria-hidden
+                            className="h-1.5 w-1.5 rounded-full bg-amber-400"
+                          />
+                          {fact}
+                        </span>
+                      ))}
+                    </div>
+                    <h2 className="mt-3 max-w-3xl text-2xl font-bold leading-tight text-white sm:text-4xl">
+                      {slide.headline}
+                    </h2>
+                    {slide.subtext && (
+                      <p className="mt-2 hidden max-w-2xl text-sm text-white/85 sm:block sm:text-base">
+                        {slide.subtext}
+                      </p>
+                    )}
+                    <span className="mt-4 inline-flex items-center gap-2 rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-[#020022] transition hover:bg-gray-100">
+                      {slide.ctaLabel}
+                      <span aria-hidden>&rarr;</span>
+                    </span>
+                  </div>
+                </Link>
+              )}
               {/* No caption is drawn over hero photos. Gallery titles are
                   filenames like "excel-pro image 1", which looked like a
                   mistake on the front page. The title still serves as the
@@ -172,16 +432,24 @@ const Billboard = () => {
           ))}
 
           {slides.length > 1 && (
-            <div className="absolute top-1/2 left-0 right-0 flex justify-between px-4 transform -translate-y-1/2">
-              <ArrowButton
-                direction="left"
-                onClick={() =>
-                  setCurrent(
-                    (prev) => (prev - 1 + slides.length) % slides.length
-                  )
-                }
-              />
-              <ArrowButton direction="right" onClick={next} />
+            // pointer-events-none on the strip, auto on the two buttons. This
+            // bar spans the full width of the hero, so without it the middle
+            // of every slide was a dead zone that swallowed clicks meant for
+            // the promo link underneath.
+            <div className="pointer-events-none absolute top-1/2 left-0 right-0 z-20 flex justify-between px-4 transform -translate-y-1/2">
+              <span className="pointer-events-auto">
+                <ArrowButton
+                  direction="left"
+                  onClick={() =>
+                    setCurrent(
+                      (prev) => (prev - 1 + slides.length) % slides.length
+                    )
+                  }
+                />
+              </span>
+              <span className="pointer-events-auto">
+                <ArrowButton direction="right" onClick={next} />
+              </span>
             </div>
           )}
         </div>
@@ -204,6 +472,10 @@ const Billboard = () => {
               imageUrl={players[0].image_url}
               title={players[0].player_name}
               badge="Player of the Month"
+              // The caption typed in Dashboard > Player of the Month is the
+              // reason they won it. Showing the name alone left parents with
+              // no idea what the player had actually done.
+              note={players[0].caption?.trim() || undefined}
               alt={`${players[0].player_name} — Excel Pro player of the month`}
               href="/matchday"
             />

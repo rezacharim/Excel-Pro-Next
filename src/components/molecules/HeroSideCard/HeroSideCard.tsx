@@ -6,6 +6,12 @@ interface HeroSideCardProps {
   title: string;
   /** Small line under the title. */
   subtitle?: string;
+  /**
+   * A sentence or two under the title — for Player of the Month this is the
+   * reason they won it. Wraps to two lines instead of truncating, because
+   * half a reason is worse than none.
+   */
+  note?: string;
   /** Optional red pill in the top-left corner, e.g. "Player of the Month". */
   badge?: string;
   href?: string;
@@ -30,6 +36,7 @@ const HeroSideCard = ({
   imageUrl,
   title,
   subtitle,
+  note,
   badge,
   href,
   focus = "center 25%",
@@ -53,12 +60,21 @@ const HeroSideCard = ({
         </span>
       )}
 
-      <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-4 pb-3 pt-12">
+      <div
+        className={`absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pt-12 ${
+          note ? "pb-4" : "pb-3"
+        }`}
+      >
         <p className="text-white text-base font-bold leading-tight truncate">
           {title}
         </p>
         {subtitle && (
           <p className="text-white/80 text-xs mt-0.5 truncate">{subtitle}</p>
+        )}
+        {note && (
+          <p className="mt-1 text-[11px] leading-snug text-white/85 line-clamp-2">
+            {note}
+          </p>
         )}
       </div>
     </>

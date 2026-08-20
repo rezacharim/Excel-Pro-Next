@@ -291,15 +291,19 @@ const PlayerMonthGallery: NextPage = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Caption (optional)
+              Why they won it
             </label>
+            <p className="mb-1 text-xs text-gray-500">
+              One or two sentences. This shows under their name on the home
+              page.
+            </p>
             <textarea
               name="caption"
               value={createFormData.caption}
               onChange={handleCreateInputChange}
               className="w-full p-2 border border-gray-300 rounded-md"
               rows={3}
-              placeholder="Enter a caption"
+              placeholder="e.g. Scored in four straight games and never stopped tracking back."
             />
           </div>
 
@@ -393,15 +397,19 @@ const PlayerMonthGallery: NextPage = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Caption (optional)
+              Why they won it
             </label>
+            <p className="mb-1 text-xs text-gray-500">
+              One or two sentences. This shows under their name on the home
+              page.
+            </p>
             <textarea
               name="caption"
               value={updateFormData.caption}
               onChange={handleUpdateInputChange}
               className="w-full p-2 border border-gray-300 rounded-md"
               rows={3}
-              placeholder="Enter a caption"
+              placeholder="e.g. Scored in four straight games and never stopped tracking back."
             />
           </div>
 

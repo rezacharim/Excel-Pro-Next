@@ -6,6 +6,8 @@ import {
   Megaphone,
   MessageCircle,
   Quote,
+  CalendarDays,
+  Shirt,
   PiggyBank,
   Settings,
   ClipboardList,
@@ -93,6 +95,18 @@ export const navigationItems: NavigationItemsTypes[] = [
     id: 15,
     icon: <UserRound className="w-5 h-5 text-gray-500" />,
     label: "Coaches",
+    active: false,
+  },
+  {
+    id: 17,
+    icon: <CalendarDays className="w-5 h-5 text-gray-500" />,
+    label: "Fixtures",
+    active: false,
+  },
+  {
+    id: 18,
+    icon: <Shirt className="w-5 h-5 text-gray-500" />,
+    label: "Teams",
     active: false,
   },
   {

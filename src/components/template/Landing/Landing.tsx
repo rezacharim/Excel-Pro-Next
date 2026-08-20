@@ -10,12 +10,20 @@ import ContactForm from "@/components/organisms/ContactForm/ContactForm";
 import InstagramFeed from "@/components/organisms/InstagramFeed/InstagramFeed";
 import { PlayerProvider } from "@/context/PlayerContext/PlayerContext";
 import { fetchAllPlayerMonth } from "@/services/getPlayerMonth";
+import NextGameBoard from "@/components/organisms/NextGame/NextGameBoard";
+import { getTeams, getUpcomingFixtures } from "@/services/fixtures";
 
 export const revalidate = 30;
 
 const Landing = async () => {
   
-  const players = await fetchAllPlayerMonth();
+  // Fetched together so a slow fixture list does not hold up the player of
+  // the month, and vice versa.
+  const [players, fixtures, teams] = await Promise.all([
+    fetchAllPlayerMonth(),
+    getUpcomingFixtures(12),
+    getTeams(),
+  ]);
 
   return (
     <div className="py-40">
@@ -27,6 +35,10 @@ const Landing = async () => {
       {/* Directly under the banner: league registration, trials and news,
           pulled from the same announcements the dashboard manages. */}
       <LatestNews />
+      {/* The next game for each team, with that team's photo, and the games
+          coming up underneath. Renders nothing at all when there are no
+          fixtures, so an out-of-season home page does not carry an empty box. */}
+      <NextGameBoard fixtures={fixtures} teams={teams} />
       <HeroSection />
       <Summary />
       <SummeryServices />

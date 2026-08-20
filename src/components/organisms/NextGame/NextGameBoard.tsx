@@ -18,6 +18,7 @@ import {
   type Fixture,
   type Team,
 } from "@/services/fixtures";
+import { SITE_TEXT_DEFAULTS, type SiteText } from "@/services/siteText";
 
 const ROTATE_MS = 6000;
 const LIST_LENGTH = 6;
@@ -36,9 +37,13 @@ const LIST_LENGTH = 6;
 const NextGameBoard = ({
   fixtures,
   teams,
+  // Passed in from the server rather than fetched here: the page already has
+  // it, and a second round-trip would make the headings pop in late.
+  text = SITE_TEXT_DEFAULTS,
 }: {
   fixtures: Fixture[];
   teams: Team[];
+  text?: SiteText;
 }) => {
   const slides = nextPerTeam(fixtures);
   const [index, setIndex] = useState(0);
@@ -83,10 +88,10 @@ const NextGameBoard = ({
     <section className="mx-4 my-16 sm:my-20">
       <div className="mx-auto max-w-7xl">
         <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-[#E43125]">
-          Matchday
+          {text["fixtures.eyebrow"]}
         </p>
         <h2 className="mb-8 text-3xl font-bold text-[#020022] sm:text-4xl">
-          Next game
+          {text["fixtures.heading"]}
         </h2>
 
         {/* ------------------------------------------------------- the card */}
@@ -206,7 +211,9 @@ const NextGameBoard = ({
         {list.length > 0 && (
           <div className="mt-10">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-              <h3 className="text-xl font-bold text-[#020022]">Coming up</h3>
+              <h3 className="text-xl font-bold text-[#020022]">
+                {text["fixtures.upcoming"]}
+              </h3>
               <Link
                 href="/matchday"
                 className="text-sm font-semibold text-[#E43125] hover:underline"

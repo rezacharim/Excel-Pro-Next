@@ -2,7 +2,9 @@
 
 import { ElementType, useState } from "react";
 import AdminProfileUpdate from "@/components/molecules/AdminProfile/AdminProfile";
+import SiteTextEditor from "@/components/molecules/SiteTextEditor/SiteTextEditor";
 import {
+  FiType,
   FiUser,
   // FiSettings,
   // FiCreditCard,
@@ -23,6 +25,7 @@ const Setting = () => {
   // Tab configuration
   const tabs: TabItem[] = [
     { id: "profile", label: "Profile", icon: FiUser },
+    { id: "site-text", label: "Website text", icon: FiType },
     // { id: "security", label: "Security", icon: FiShield },
     // { id: "notifications", label: "Notifications", icon: FiBell },
     // { id: "billing", label: "Billing", icon: FiCreditCard },
@@ -39,7 +42,7 @@ const Setting = () => {
             Admin Settings
           </h1>
           <p className="text-gray-500 mt-1">
-            Manage your profile, security, and account preferences
+            Your admin profile, and the wording used on the public website
           </p>
         </div>
 
@@ -69,6 +72,8 @@ const Setting = () => {
         {/* Tab Content */}
         <div>
           {activeTab === "profile" && <AdminProfileUpdate />}
+
+          {activeTab === "site-text" && <SiteTextEditor />}
 
           {activeTab === "security" && (
             <div className="bg-white rounded-lg shadow-sm p-6">

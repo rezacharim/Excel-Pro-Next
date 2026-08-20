@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { fetchAllImages } from "@/services/getAllImages";
-
-const INSTAGRAM_URL = "https://www.instagram.com/excel.pro.soccer.academy";
-const INSTAGRAM_HANDLE = "@excel.pro.soccer.academy";
+import {
+  fetchSiteText,
+  SITE_TEXT_DEFAULTS,
+  type SiteText,
+} from "@/services/siteText";
 
 interface GalleryImage {
   id: string;
@@ -43,6 +45,9 @@ const InstagramIcon = ({ className }: { className?: string }) => (
 const InstagramFeed = () => {
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [loaded, setLoaded] = useState(false);
+  // Headings come from Settings > Website text. Starts on the shipped wording
+  // so the section never flashes empty while the request is in flight.
+  const [text, setText] = useState<SiteText>(SITE_TEXT_DEFAULTS);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +62,8 @@ const InstagramFeed = () => {
       });
       setImages(sorted.filter((i) => i.image_url).slice(0, 9));
       setLoaded(true);
+      const copy = await fetchSiteText();
+      if (!cancelled) setText(copy);
     })();
     return () => {
       cancelled = true;
@@ -71,20 +78,20 @@ const InstagramFeed = () => {
       <div className="max-w-7xl mx-auto px-4 md:px-8">
         <div className="text-center mb-10">
           <span className="inline-block px-4 py-1.5 rounded-full bg-red-50 text-primary text-sm font-medium mb-4">
-            Follow our journey
+            {text["instagram.eyebrow"]}
           </span>
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
-            Latest from our Instagram
+            {text["instagram.heading"]}
           </h2>
           <p className="mt-3 text-gray-600">
-            Training sessions, match days and player moments —{" "}
+            {text["instagram.blurb"]}{" "}
             <a
-              href={INSTAGRAM_URL}
+              href={text["instagram.url"]}
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary font-medium hover:underline"
             >
-              {INSTAGRAM_HANDLE}
+              {text["instagram.handle"]}
             </a>
           </p>
         </div>
@@ -93,7 +100,7 @@ const InstagramFeed = () => {
           {images.map((img, index) => (
             <motion.a
               key={img.id ?? index}
-              href={INSTAGRAM_URL}
+              href={text["instagram.url"]}
               target="_blank"
               rel="noopener noreferrer"
               aria-label={`Open our Instagram page${img.title ? ` — ${img.title}` : ""}`}
@@ -119,7 +126,7 @@ const InstagramFeed = () => {
 
         <div className="mt-10 text-center">
           <a
-            href={INSTAGRAM_URL}
+            href={text["instagram.url"]}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-[#c9281e] text-white rounded-full font-medium transition-colors"

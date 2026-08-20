@@ -1,6 +1,7 @@
 import Link from "next/link";
 import NewsSlider, { type NewsCard } from "./NewsSlider";
 import { isRegistrationPost } from "@/services/news";
+import { getSiteText } from "@/services/siteText";
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
@@ -109,7 +110,7 @@ const getAnnouncements = async (): Promise<Announcement[]> => {
  * Google, then handed to a client component that slides through them.
  */
 const LatestNews = async () => {
-  const all = await getAnnouncements();
+  const [all, text] = await Promise.all([getAnnouncements(), getSiteText()]);
   if (all.length === 0) return null;
 
   // Stories only. The hero above already carries league registration and
@@ -155,17 +156,17 @@ const LatestNews = async () => {
         <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-[#E43125]">
-              What&apos;s happening
+              {text["news.eyebrow"]}
             </p>
             <h2 className="text-3xl font-bold text-[#020022] sm:text-4xl">
-              Latest from the academy
+              {text["news.heading"]}
             </h2>
           </div>
           <Link
             href="/announcements"
             className="text-sm font-semibold text-[#E43125] hover:underline"
           >
-            See all news &amp; registration →
+            {text["news.link"]} →
           </Link>
         </div>
 

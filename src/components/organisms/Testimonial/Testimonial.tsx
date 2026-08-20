@@ -8,6 +8,11 @@ import {
   initials,
   type Testimonial as TestimonialItem,
 } from "@/services/testimonials";
+import {
+  fetchSiteText,
+  SITE_TEXT_DEFAULTS,
+  type SiteText,
+} from "@/services/siteText";
 
 const ROTATE_MS = 8000;
 
@@ -27,12 +32,16 @@ const Testimonial = () => {
   const [items, setItems] = useState<TestimonialItem[]>([]);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [text, setText] = useState<SiteText>(SITE_TEXT_DEFAULTS);
   const reducedMotion = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
     getTestimonials().then((list) => {
       if (!cancelled) setItems(list);
+    });
+    fetchSiteText().then((copy) => {
+      if (!cancelled) setText(copy);
     });
     reducedMotion.current = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
@@ -71,10 +80,10 @@ const Testimonial = () => {
     >
       <div className="mx-auto max-w-7xl">
         <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-[#E43125]">
-          In their words
+          {text["testimonials.eyebrow"]}
         </p>
         <h2 className="mb-8 text-3xl font-bold text-[#121212] md:text-4xl">
-          What our families say
+          {text["testimonials.heading"]}
         </h2>
 
         <div

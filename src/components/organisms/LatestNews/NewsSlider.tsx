@@ -24,25 +24,30 @@ const ROTATE_MS = 6000;
 /**
  * The home page news slider.
  *
- * Two stories at a time on a desktop, one on a phone, sliding one card at a
- * time. Auto-rotation stops on hover, on focus, and for anyone who has asked
- * their system for reduced motion — a carousel that keeps moving while you are
- * trying to read it is worse than no carousel.
+ * Three stories at a time on a wide screen, two on a tablet, one on a phone,
+ * sliding one card at a time. Auto-rotation stops on hover, on focus, and for
+ * anyone who has asked their system for reduced motion — a carousel that keeps
+ * moving while you are trying to read it is worse than no carousel.
  */
 const NewsSlider = ({ items }: { items: NewsCard[] }) => {
-  const [perView, setPerView] = useState(2);
+  const [perView, setPerView] = useState(3);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const reducedMotion = useRef(false);
 
   useEffect(() => {
-    const wide = window.matchMedia("(min-width: 768px)");
+    const wide = window.matchMedia("(min-width: 1024px)");
+    const medium = window.matchMedia("(min-width: 640px)");
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const apply = () => setPerView(wide.matches ? 2 : 1);
+    const apply = () => setPerView(wide.matches ? 3 : medium.matches ? 2 : 1);
     reducedMotion.current = motion.matches;
     apply();
     wide.addEventListener("change", apply);
-    return () => wide.removeEventListener("change", apply);
+    medium.addEventListener("change", apply);
+    return () => {
+      wide.removeEventListener("change", apply);
+      medium.removeEventListener("change", apply);
+    };
   }, []);
 
   const maxIndex = Math.max(0, items.length - perView);
@@ -74,7 +79,10 @@ const NewsSlider = ({ items }: { items: NewsCard[] }) => {
       onFocusCapture={() => setPaused(true)}
       onBlurCapture={() => setPaused(false)}
     >
-      <div className="overflow-hidden">
+      {/* The gutter lives on every card so the spacing between them is even.
+          Pulling the viewport out by the same amount keeps the first and last
+          cards flush with the rest of the page instead of inset by a gutter. */}
+      <div className="overflow-hidden sm:-mx-3">
         <div
           className="flex transition-transform duration-500 ease-out"
           style={{ transform: `translateX(-${index * (100 / perView)}%)` }}
@@ -82,7 +90,7 @@ const NewsSlider = ({ items }: { items: NewsCard[] }) => {
           {items.map((item) => (
             <div
               key={item.id}
-              className="w-full md:w-1/2 flex-shrink-0 px-0 md:px-3 first:md:pl-0 last:md:pr-0"
+              className="w-full flex-shrink-0 px-0 sm:w-1/2 sm:px-3 lg:w-1/3"
             >
               <Link
                 href={item.href}

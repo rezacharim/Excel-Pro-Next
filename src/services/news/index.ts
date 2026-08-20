@@ -38,20 +38,58 @@ export interface Post {
 }
 
 /**
- * A post is worth its own page once it has a full story or photos. A one-line
- * registration notice is not — linking to a page that just repeats the card
- * wastes the reader's click.
+ * Every post with a slug has a page.
+ *
+ * This used to also require a `fullBody` or photos, which quietly excluded
+ * every notice written entirely in the short `body` field — the Winter League
+ * and Indoor posts among them. Those are the longest posts on the site, and
+ * the only place their text could appear was in full on the listing page,
+ * which is what made that page unreadable. Now they get a page like anything
+ * else and the card shows an excerpt.
  */
-export const hasFullPost = (post: {
-  slug?: string | null;
-  fullBody?: string | null;
-  photos?: PostPhoto[] | null;
-}): boolean =>
-  Boolean(
-    post.slug &&
-      ((post.fullBody ?? "").trim().length > 0 ||
-        (post.photos ?? []).some((p) => p?.url))
+export const hasFullPost = (post: { slug?: string | null }): boolean =>
+  Boolean(post.slug);
+
+/**
+ * Is this post a thing to DO rather than a thing to READ?
+ *
+ * Category alone is not enough. The Indoor Season notice is filed under
+ * "news" because there is no Indoor category, but it is a registration notice
+ * with a "Reserve your spot" button on it — and treating it as a story put it
+ * in the home page news slider next to match reports. The button gives it
+ * away, so the button is what we check.
+ */
+export const isRegistrationPost = (post: {
+  category?: string | null;
+  ctaLabel?: string | null;
+  ctaUrl?: string | null;
+}): boolean => {
+  if (post.category === "league" || post.category === "trial") return true;
+  // A match report, an award or an interview is a story, full stop. The live
+  // U13 report carries a "Register Now" button at the bottom — which is good
+  // marketing and must not turn the report itself into a registration notice.
+  if (["match", "medal", "interview"].includes(post.category ?? "")) {
+    return false;
+  }
+  return Boolean(
+    post.ctaUrl && /regist|reserv|sign.?up|book/i.test(post.ctaLabel ?? "")
   );
+};
+
+/**
+ * The text to render on a post's own page.
+ *
+ * Prefers the long-form story, falls back to the short body. Without the
+ * fallback an older notice would open to a page with a headline and nothing
+ * underneath it.
+ */
+export const postStory = (post: {
+  fullBody?: string | null;
+  body?: string | null;
+}): string => {
+  const full = (post.fullBody ?? "").trim();
+  return full.length > 0 ? full : (post.body ?? "").trim();
+};
 
 /** No caching: an edit in the dashboard should be visible immediately. */
 const FETCH_OPTIONS: RequestInit = { cache: "no-store" };

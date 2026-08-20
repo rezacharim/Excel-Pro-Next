@@ -18,8 +18,27 @@
 
 type StoryBlock =
   | { kind: "heading"; text: string }
-  | { kind: "paragraph"; text: string }
+  /** Lines kept separate so a break the writer typed is a break on the page. */
+  | { kind: "paragraph"; lines: string[] }
   | { kind: "list"; items: string[] };
+
+/**
+ * A short line in capitals is a heading.
+ *
+ * The academy's older notices are written that way — "PAYMENT SCHEDULE",
+ * "HOW TO PAY", "WHEN AND WHERE" — because they were composed for WhatsApp,
+ * where there is no other way to make a heading. Treating them as ordinary
+ * text ran them into the sentence beneath. Guarded tightly: no lowercase at
+ * all, short, and containing at least one letter, so "U9" or "3-1" on its own
+ * line is not promoted.
+ */
+const isShoutedHeading = (line: string): boolean =>
+  !/^[-*•]/.test(line) &&
+  line.length <= 42 &&
+  /[A-Z]/.test(line) &&
+  !/[a-z]/.test(line) &&
+  /^[A-Z0-9 &'/,()-]+$/.test(line) &&
+  line.split(/\s+/).length >= 2;
 
 export const parseStory = (source: string): StoryBlock[] => {
   const blocks: StoryBlock[] = [];
@@ -28,7 +47,7 @@ export const parseStory = (source: string): StoryBlock[] => {
 
   const flushParagraph = () => {
     if (paragraph.length) {
-      blocks.push({ kind: "paragraph", text: paragraph.join(" ").trim() });
+      blocks.push({ kind: "paragraph", lines: paragraph });
       paragraph = [];
     }
   };
@@ -57,6 +76,14 @@ export const parseStory = (source: string): StoryBlock[] => {
     if (bullet) {
       flushParagraph();
       list.push(bullet[1].trim());
+      continue;
+    }
+    // After the bullet branch on purpose: "- TJ" is a list item, not a
+    // heading, and checking this first turned one into the other.
+    if (isShoutedHeading(line)) {
+      flushList();
+      flushParagraph();
+      blocks.push({ kind: "heading", text: line });
       continue;
     }
     flushList();
@@ -143,7 +170,12 @@ const Story = ({ text, fallbackHeading }: StoryProps) => {
                 : "text-gray-700 leading-relaxed mb-4"
             }
           >
-            <Emphasised text={block.text} />
+            {block.lines.map((line, j) => (
+              <span key={j}>
+                {j > 0 && <br />}
+                <Emphasised text={line} />
+              </span>
+            ))}
           </p>
         );
       })}

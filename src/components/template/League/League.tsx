@@ -6,13 +6,11 @@ import {
   getLeagueSeason,
   getPortalLeague,
   portalRegisterForLeague,
-  registerForLeague,
   updatePortalPlayer,
   addPortalPlayer,
   type LeagueSeason,
   type PortalLeagueOverview,
   type PortalLeaguePlayer,
-  type PublicRegisterPayload,
 } from "@/services/league";
 import { portalLogin } from "@/services/portal";
 import { sendEmailOtp } from "@/services/sendOtpCode";
@@ -109,7 +107,6 @@ const League = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [overview, setOverview] = useState<PortalLeagueOverview | null>(null);
-  const [mode, setMode] = useState<"choose" | "existing" | "new">("choose");
 
   useEffect(() => {
     getLeagueSeason()
@@ -275,6 +272,13 @@ const League = () => {
         )}
 
         {/* ------------------------------------------------------- routing */}
+        {/* One path in, for everybody. Asking a parent to self-identify as
+            "new" or "existing" before they have signed in was a question they
+            often got wrong — families who trained with us but had never used
+            the website picked "new" and typed in details we already held. The
+            email code answers that question for them: whatever we have on
+            file appears after they sign in, and if we have nothing they add
+            their child on the next screen. */}
         {overview ? (
           <ExistingFamily
             overview={overview}
@@ -285,61 +289,16 @@ const League = () => {
               localStorage.removeItem(EMAIL_KEY);
               setToken(null);
               setOverview(null);
-              setMode("choose");
             }}
           />
-        ) : mode === "choose" ? (
-          <div className="grid gap-5 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => setMode("existing")}
-              className="rounded-2xl border-2 border-[#E43125] bg-white p-7 text-left transition hover:shadow-lg"
-            >
-              <p className="text-lg font-bold text-[#020022]">
-                My child already trains with Excel Pro
-              </p>
-              <p className="mt-2 text-sm text-gray-600">
-                Sign in with your email and register in about 30 seconds.
-                Anything we already hold is filled in for you &mdash; and you
-                can correct it if it is out of date.
-              </p>
-              <p className="mt-2 text-sm text-gray-500">
-                Never used our website before? Still choose this. Signing in
-                creates your account, and you can add your child yourself.
-              </p>
-              <span className="mt-4 inline-block font-semibold text-[#E43125]">
-                Continue →
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("new")}
-              className="rounded-2xl border border-gray-300 bg-white p-7 text-left transition hover:shadow-lg"
-            >
-              <p className="text-lg font-bold text-[#020022]">
-                We are new to the academy
-              </p>
-              <p className="mt-2 text-sm text-gray-600">
-                Your child has not trained with us before. Fill in their
-                details once &mdash; about 3 minutes &mdash; and you get a
-                family account to use from then on.
-              </p>
-              <span className="mt-4 inline-block font-semibold text-[#020022]">
-                Continue →
-              </span>
-            </button>
-          </div>
-        ) : mode === "existing" ? (
+        ) : (
           <SignIn
-            onBack={() => setMode("choose")}
             onSignedIn={(t, email) => {
               localStorage.setItem(TOKEN_KEY, t);
               localStorage.setItem(EMAIL_KEY, email);
               setToken(t);
             }}
           />
-        ) : (
-          <NewFamilyForm season={season} onBack={() => setMode("choose")} />
         )}
 
         {/* ----------------------------------------------------- payment */}
@@ -359,10 +318,8 @@ const League = () => {
 /* -------------------------------------------------------------- sign in */
 
 const SignIn = ({
-  onBack,
   onSignedIn,
 }: {
-  onBack: () => void;
   onSignedIn: (token: string, email: string) => void;
 }) => {
   const [email, setEmail] = useState("");
@@ -399,19 +356,13 @@ const SignIn = ({
 
   return (
     <div className="mx-auto max-w-md rounded-2xl bg-white p-7 shadow-sm ring-1 ring-gray-200">
-      <button
-        onClick={onBack}
-        className="mb-4 text-sm text-gray-500 hover:text-gray-700"
-      >
-        ← Back
-      </button>
       <h2 className="text-xl font-bold text-[#020022]">
-        Sign in to register your child
+        Register your child
       </h2>
       <p className="mt-2 text-sm text-gray-600">
         {sent
           ? `We sent a 6-digit code to ${email}. It expires in 10 minutes.`
-          : "Use the email address the academy has on file for your family."}
+          : "Enter your email and we will send you a 6-digit code. New to the academy or already training with us — it is the same first step."}
       </p>
 
       <div className="mt-5 space-y-4">
@@ -469,10 +420,9 @@ const SignIn = ({
         )}
 
         <p className="text-center text-xs text-gray-500">
-          Not registered with us yet?{" "}
-          <button onClick={onBack} className="text-[#E43125] underline">
-            Use the new family form
-          </button>
+          {sent
+            ? "The code can take a minute to arrive. Check your junk folder before asking for another."
+            : "No password to remember. If we already have your child on file, their details appear once you are in."}
         </p>
       </div>
     </div>
@@ -493,12 +443,18 @@ const ExistingFamily = ({
   onSignOut: () => void;
 }) => {
   const [openFor, setOpenFor] = useState<number | null>(null);
-  const [adding, setAdding] = useState(false);
+  // A family with nobody on file is a new family. They came here to register a
+  // child, so show them the form rather than an empty page with a button on
+  // it — the extra click told them nothing they did not already know.
+  const [adding, setAdding] = useState(overview.players.length === 0);
+  const isNewFamily = overview.players.length === 0;
 
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-bold text-[#020022]">Your players</h2>
+        <h2 className="text-xl font-bold text-[#020022]">
+          {isNewFamily ? "Your child's details" : "Your players"}
+        </h2>
         <div className="flex gap-4 text-sm">
           <Link href="/account" className="text-[#E43125] hover:underline">
             My dashboard
@@ -509,37 +465,24 @@ const ExistingFamily = ({
         </div>
       </div>
 
-      {overview.players.length === 0 && !adding && (
-        <div className="rounded-xl border border-gray-200 bg-white p-6">
-          <p className="font-semibold text-[#020022]">
-            No players on file for this email yet
-          </p>
-          <p className="mt-2 text-sm text-gray-600">
-            That is normal if your child joined us at the field rather than
-            through this website. Add them here and they will be on your
-            account from now on.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <button
-              onClick={() => setAdding(true)}
-              className="rounded-lg bg-[#E43125] px-5 py-2.5 font-semibold text-white transition hover:bg-[#c4291f]"
-            >
-              Add my player
+      {isNewFamily && adding && (
+        <div className="mb-4 rounded-xl border-l-4 border-[#E43125] bg-red-50 p-4">
+          <p className="text-sm text-gray-700">
+            We do not have a player on file for this email yet. Fill this in
+            once and your child stays on your account for every season after
+            this one.{" "}
+            <button onClick={onSignOut} className="underline">
+              Signed in with the wrong email?
             </button>
-            <button
-              onClick={onSignOut}
-              className="rounded-lg border border-gray-300 px-5 py-2.5 font-semibold text-gray-700 transition hover:bg-gray-50"
-            >
-              Try a different email
-            </button>
-          </div>
+          </p>
         </div>
       )}
 
       {adding && (
         <AddPlayerForm
           token={token}
-          onCancel={() => setAdding(false)}
+          // A new family has nothing to cancel back to, so no cancel button.
+          onCancel={isNewFamily ? undefined : () => setAdding(false)}
           onAdded={() => {
             setAdding(false);
             onDone();
@@ -1035,7 +978,8 @@ const AddPlayerForm = ({
   onAdded,
 }: {
   token: string;
-  onCancel: () => void;
+  /** Omitted for a brand-new family — they have nothing to cancel back to. */
+  onCancel?: () => void;
   onAdded: () => void;
 }) => {
   const [form, setForm] = useState({
@@ -1185,312 +1129,18 @@ const AddPlayerForm = ({
           {busy && <Spinner />}
           Add player
         </button>
-        <button
-          onClick={onCancel}
-          className="rounded-lg border border-gray-300 px-5 py-2.5 font-medium text-gray-700 transition hover:bg-gray-50"
-        >
-          Cancel
-        </button>
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            className="rounded-lg border border-gray-300 px-5 py-2.5 font-medium text-gray-700 transition hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+        )}
       </div>
     </div>
   );
 };
 
-/* ---------------------------------------------------------- new family */
-
-const NewFamilyForm = ({
-  season,
-  onBack,
-}: {
-  season: LeagueSeason | null;
-  onBack: () => void;
-}) => {
-  const [form, setForm] = useState<PublicRegisterPayload>({
-    ageGroup: "",
-    firstName: "",
-    lastName: "",
-    dateOfBirth: "",
-    gender: "M",
-    email: "",
-    phone: "",
-    address1: "",
-    city: "",
-    province: "ON",
-    postalCode: "",
-    parentName: "",
-    medicalNotes: "",
-    previousClub: "",
-    consentTerms: false,
-    consentPhoto: false,
-  });
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ waitlisted: boolean } | null>(null);
-
-  const set = (k: keyof PublicRegisterPayload, v: unknown) =>
-    setForm((f) => ({ ...f, [k]: v }));
-
-  const required: (keyof PublicRegisterPayload)[] = [
-    "ageGroup",
-    "firstName",
-    "lastName",
-    "dateOfBirth",
-    "email",
-    "phone",
-    "address1",
-    "city",
-    "postalCode",
-  ];
-  const ready = required.every((k) => String(form[k] ?? "").trim()) && form.consentTerms;
-
-  const submit = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const reg = await registerForLeague(form);
-      setDone({ waitlisted: reg.status === "waitlist" });
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (done) {
-    return (
-      <div className="mx-auto max-w-xl rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-gray-200">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-3xl">
-          ✓
-        </div>
-        <h2 className="text-2xl font-bold text-[#020022]">
-          {done.waitlisted ? "You are on the waiting list" : "Registration received"}
-        </h2>
-        <p className="mt-3 text-gray-600">
-          {done.waitlisted ? (
-            <>
-              That age group is currently full, so we have added{" "}
-              {form.firstName} to the waiting list. <strong>Please do not
-              send payment yet</strong> — we will contact you as soon as a spot
-              opens.
-            </>
-          ) : (
-            <>
-              We have emailed <strong>{form.email}</strong> with the payment
-              details. {form.firstName}&apos;s spot is confirmed once the first
-              payment of {money((season?.feeTotal ?? 900) / 2)} is received.
-            </>
-          )}
-        </p>
-        {!done.waitlisted && season?.paymentInstructions && (
-          <div className="mt-6 rounded-lg border-l-4 border-[#E43125] bg-red-50 p-4 text-left text-sm text-gray-700">
-            {season.paymentInstructions}
-          </div>
-        )}
-        <Link
-          href="/account"
-          className="mt-6 inline-block rounded-lg bg-[#E43125] px-6 py-3 font-semibold text-white"
-        >
-          Go to my account
-        </Link>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-2xl bg-white p-7 shadow-sm ring-1 ring-gray-200">
-      <button
-        onClick={onBack}
-        className="mb-4 text-sm text-gray-500 hover:text-gray-700"
-      >
-        ← Back
-      </button>
-      <h2 className="text-xl font-bold text-[#020022]">Register your player</h2>
-      <p className="mt-1 text-sm text-gray-600">
-        Everything marked * is required by the league.
-      </p>
-
-      <div className="mt-6 space-y-5">
-        <Field label="Age group" required>
-          <select
-            className={inputClass}
-            value={form.ageGroup}
-            onChange={(e) => set("ageGroup", e.target.value)}
-          >
-            <option value="">Choose an age group…</option>
-            {(season?.ageGroups ?? []).map((g) => (
-              <option key={g.ageGroup} value={g.ageGroup}>
-                {g.ageGroup}
-                {g.show && g.label ? ` — ${g.label}` : ""}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Player first name" required>
-            <input
-              className={inputClass}
-              value={form.firstName}
-              onChange={(e) => set("firstName", e.target.value)}
-            />
-          </Field>
-          <Field label="Player last name" required>
-            <input
-              className={inputClass}
-              value={form.lastName}
-              onChange={(e) => set("lastName", e.target.value)}
-            />
-          </Field>
-          <Field
-            label="Date of birth"
-            required
-            hint="Must match the child's passport or birth certificate."
-          >
-            <input
-              type="date"
-              className={inputClass}
-              value={form.dateOfBirth}
-              onChange={(e) => set("dateOfBirth", e.target.value)}
-            />
-          </Field>
-          <Field label="Gender" required>
-            <select
-              className={inputClass}
-              value={form.gender}
-              onChange={(e) => set("gender", e.target.value)}
-            >
-              <option value="M">Male</option>
-              <option value="F">Female</option>
-            </select>
-          </Field>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Parent / guardian name">
-            <input
-              className={inputClass}
-              value={form.parentName}
-              onChange={(e) => set("parentName", e.target.value)}
-            />
-          </Field>
-          <Field label="Phone number" required>
-            <input
-              className={inputClass}
-              value={form.phone}
-              onChange={(e) => set("phone", e.target.value)}
-              placeholder="647-555-1234"
-            />
-          </Field>
-          <Field
-            label="Email address"
-            required
-            hint="This is how you sign in and how we send receipts."
-          >
-            <input
-              type="email"
-              className={inputClass}
-              value={form.email}
-              onChange={(e) => set("email", e.target.value)}
-            />
-          </Field>
-          <Field label="Previous club">
-            <input
-              className={inputClass}
-              value={form.previousClub}
-              onChange={(e) => set("previousClub", e.target.value)}
-            />
-          </Field>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Street address" required>
-            <input
-              className={inputClass}
-              value={form.address1}
-              onChange={(e) => set("address1", e.target.value)}
-            />
-          </Field>
-          <Field label="City" required>
-            <input
-              className={inputClass}
-              value={form.city}
-              onChange={(e) => set("city", e.target.value)}
-            />
-          </Field>
-          <Field label="Postal code" required>
-            <input
-              className={inputClass}
-              value={form.postalCode}
-              onChange={(e) => set("postalCode", e.target.value)}
-              placeholder="L3T 3S2"
-            />
-          </Field>
-          <Field label="Province">
-            <input
-              className={inputClass}
-              value={form.province}
-              onChange={(e) => set("province", e.target.value)}
-            />
-          </Field>
-        </div>
-
-        <Field
-          label="Medical notes"
-          hint="Allergies, asthma, medication — anything a coach must know on the field."
-        >
-          <textarea
-            rows={2}
-            className={inputClass}
-            value={form.medicalNotes}
-            onChange={(e) => set("medicalNotes", e.target.value)}
-          />
-        </Field>
-
-        <div className="space-y-3 rounded-lg bg-gray-50 p-4">
-          <label className="flex items-start gap-3 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              className="mt-1 h-4 w-4 accent-[#E43125]"
-              checked={form.consentTerms}
-              onChange={(e) => set("consentTerms", e.target.checked)}
-            />
-            <span>
-              I accept the league terms and understand that the roster spot is
-              confirmed only once the first payment is received.{" "}
-              <span className="text-[#E43125]">*</span>
-            </span>
-          </label>
-          <label className="flex items-start gap-3 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              className="mt-1 h-4 w-4 accent-[#E43125]"
-              checked={form.consentPhoto}
-              onChange={(e) => set("consentPhoto", e.target.checked)}
-            />
-            <span>
-              I consent to photos and video of my child being used by the
-              academy.
-            </span>
-          </label>
-        </div>
-
-        {error && (
-          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-            {error}
-          </p>
-        )}
-
-        <button
-          onClick={submit}
-          disabled={busy || !ready}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#E43125] py-3.5 font-semibold text-white transition hover:bg-[#c4291f] disabled:opacity-50 sm:w-auto sm:px-10"
-        >
-          {busy && <Spinner />}
-          Complete registration
-        </button>
-      </div>
-    </div>
-  );
-};
 
 export default League;

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import NewsSlider, { type NewsCard } from "./NewsSlider";
+import { isRegistrationPost } from "@/services/news";
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
@@ -111,22 +112,19 @@ const LatestNews = async () => {
   const all = await getAnnouncements();
   if (all.length === 0) return null;
 
-  // League and trials outrank the rest — they are the ones with a deadline.
-  const rank: Record<AnnouncementCategory, number> = {
-    league: 0,
-    trial: 1,
-    news: 2,
-    match: 3,
-    medal: 3,
-    interview: 3,
-  };
+  // Stories only. The hero above already carries league registration and
+  // trials on its own slides, and showing the same Winter League notice twice
+  // on one screen made the front page look like it had nothing else to say.
+  // If there are no stories yet, fall back to everything rather than render
+  // an empty section.
+  const stories = all.filter((a) => !isRegistrationPost(a));
+  const pool = stories.length > 0 ? stories : all;
 
-  const items: NewsCard[] = [...all]
+  const items: NewsCard[] = [...pool]
     .sort(
       (a, b) =>
-        rank[a.category] - rank[b.category] ||
         new Date(b.eventDate || b.createdAt).getTime() -
-          new Date(a.eventDate || a.createdAt).getTime()
+        new Date(a.eventDate || a.createdAt).getTime()
     )
     .slice(0, 6)
     .map((a) => {
@@ -160,14 +158,14 @@ const LatestNews = async () => {
               What&apos;s happening
             </p>
             <h2 className="text-3xl font-bold text-[#020022] sm:text-4xl">
-              Latest news &amp; registration
+              Latest from the academy
             </h2>
           </div>
           <Link
             href="/announcements"
             className="text-sm font-semibold text-[#E43125] hover:underline"
           >
-            See all news &amp; trials →
+            See all news &amp; registration →
           </Link>
         </div>
 

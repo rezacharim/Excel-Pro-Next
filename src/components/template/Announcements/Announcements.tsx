@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { RefreshCw, XCircle } from "lucide-react";
+import { RefreshCw, XCircle, ArrowRight } from "lucide-react";
+import { isRegistrationPost } from "@/services/news";
 
 export type AnnouncementCategory =
   | "league"
@@ -29,67 +30,37 @@ export interface Announcement {
   createdAt: string;
 }
 
-/**
- * A post earns its own page once it has a full story or photos. A one-line
- * registration notice does not — sending a parent to a page that just repeats
- * the card wastes their click.
- */
-const hasFullPost = (a: Announcement): boolean =>
-  Boolean(
-    a.slug &&
-      ((a.fullBody ?? "").trim().length > 0 ||
-        (a.photos ?? []).some((p) => p?.url))
-  );
-
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+/**
+ * A thing to DO rather than a thing to READ. These sit in a compact strip at
+ * the top of the page and never show their full text — a registration notice
+ * is a deadline and a button, and printing all 1,200 words of it pushed every
+ * match report below the fold.
+ *
+ * Shared with the home page so a post cannot be a notice in one place and a
+ * story in the other.
+ */
+const isAction = (a: Announcement) => isRegistrationPost(a);
+
+/**
+ * Any post with a slug has a page. The page falls back to the short body when
+ * there is no long-form story, so an older notice written entirely in the body
+ * field still reads properly on its own page rather than 404ing.
+ */
+const hasPage = (a: Announcement): boolean => Boolean(a.slug);
 
 const CATEGORY_BADGES: Record<
   AnnouncementCategory,
   { label: string; className: string }
 > = {
-  league: {
-    label: "League Registration",
-    className: "bg-[#E43125] text-white",
-  },
-  trial: {
-    label: "Trials",
-    className: "bg-[#020022] text-white",
-  },
-  news: {
-    label: "News",
-    className: "bg-gray-200 text-gray-700",
-  },
-  match: {
-    label: "Match Report",
-    className: "bg-[#020022] text-white",
-  },
-  medal: {
-    label: "Awards",
-    className: "bg-amber-500 text-white",
-  },
-  interview: {
-    label: "Interview",
-    className: "bg-emerald-600 text-white",
-  },
+  league: { label: "League Registration", className: "bg-[#E43125] text-white" },
+  trial: { label: "Trials", className: "bg-[#020022] text-white" },
+  news: { label: "News", className: "bg-gray-200 text-gray-700" },
+  match: { label: "Match Report", className: "bg-[#020022] text-white" },
+  medal: { label: "Awards", className: "bg-amber-500 text-white" },
+  interview: { label: "Interview", className: "bg-emerald-600 text-white" },
 };
-
-/**
- * League registration and trials carry deadlines; general news does not.
- * The ones a parent has to act on go first regardless of when they were
- * posted, then newest within each group.
- */
-const PRIORITY: Record<AnnouncementCategory, number> = {
-  league: 0,
-  trial: 1,
-  news: 2,
-  match: 3,
-  medal: 3,
-  interview: 3,
-};
-
-const byImportance = (a: Announcement, b: Announcement) =>
-  (PRIORITY[a.category] ?? 9) - (PRIORITY[b.category] ?? 9) ||
-  new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
 
 /** Fallback photo when an announcement has none of its own. */
 const FALLBACK_IMAGE: Record<AnnouncementCategory, string> = {
@@ -111,43 +82,210 @@ const formatDate = (iso: string): string => {
   });
 };
 
-const CategoryBadge = ({ category }: { category: AnnouncementCategory }) => {
+/**
+ * The first real sentence or two, never the whole post.
+ *
+ * Notices are written with a heading-per-line layout ("PAYMENT SCHEDULE",
+ * "HOW TO PAY"), so the first paragraph alone can be a single shouted word.
+ * Skip lines that look like a section heading and take the first line that
+ * reads like prose.
+ */
+const excerpt = (body: string, max = 170): string => {
+  const lines = (body ?? "")
+    .split(/\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const prose =
+    lines.find(
+      (l) => l.length > 40 && l !== l.toUpperCase() && !/^[-–—•]/.test(l)
+    ) ??
+    lines[0] ??
+    "";
+
+  const clean = prose.replace(/\s+/g, " ").trim();
+  return clean.length > max ? `${clean.slice(0, max).trimEnd()}…` : clean;
+};
+
+const CategoryBadge = ({
+  category,
+  className = "",
+}: {
+  category: AnnouncementCategory;
+  className?: string;
+}) => {
   const badge = CATEGORY_BADGES[category] ?? CATEGORY_BADGES.news;
   return (
     <span
-      className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${badge.className}`}
+      className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${badge.className} ${className}`}
     >
       {badge.label}
     </span>
   );
 };
 
-const AnnouncementCta = ({
+/** Where a card should send someone: its own page, or its button's target. */
+const destination = (a: Announcement): string =>
+  hasPage(a) ? `/announcements/${a.slug}` : a.ctaUrl || "/announcements";
+
+const isExternal = (href: string) => !href.startsWith("/");
+
+/**
+ * A registration notice, compressed to one row.
+ *
+ * Title, one line, and the button. Everything else lives on the post's own
+ * page. This is the whole point of the redesign: the two things a parent must
+ * act on stay at the top and stay small, so the news underneath is reachable
+ * without scrolling past two thousand words.
+ */
+const ActionRow = ({ announcement }: { announcement: Announcement }) => {
+  const href = destination(announcement);
+  const label = announcement.ctaLabel || "Read more";
+  const buttonClass =
+    "shrink-0 rounded-lg bg-[#E43125] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#c4291f]";
+
+  return (
+    <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center">
+      <div className="min-w-0 flex-1">
+        <div className="mb-1.5 flex flex-wrap items-center gap-2">
+          <CategoryBadge category={announcement.category} />
+          <time
+            dateTime={announcement.eventDate || announcement.createdAt}
+            className="text-xs text-gray-500"
+          >
+            {formatDate(announcement.eventDate || announcement.createdAt)}
+          </time>
+        </div>
+        <h3 className="text-base font-bold leading-snug text-[#020022] sm:text-lg">
+          {announcement.title}
+        </h3>
+        <p className="mt-1 text-sm text-gray-600">
+          {excerpt(announcement.body, 130)}
+        </p>
+      </div>
+
+      <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
+        {announcement.ctaUrl ? (
+          isExternal(announcement.ctaUrl) ? (
+            <a
+              href={announcement.ctaUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={buttonClass}
+            >
+              {label}
+            </a>
+          ) : (
+            <Link href={announcement.ctaUrl} className={buttonClass}>
+              {label}
+            </Link>
+          )
+        ) : (
+          <Link href={href} className={buttonClass}>
+            Read more
+          </Link>
+        )}
+        {hasPage(announcement) && announcement.ctaUrl && (
+          <Link
+            href={`/announcements/${announcement.slug}`}
+            className="text-xs font-medium text-gray-500 hover:text-[#E43125] hover:underline"
+          >
+            Full details →
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * A news card. The whole card is one link — a parent should not have to find
+ * a small "read more" at the bottom of a block of text.
+ */
+const NewsCard = ({
   announcement,
+  index,
 }: {
   announcement: Announcement;
+  index: number;
 }) => {
-  if (!announcement.ctaUrl) return null;
-  const label = announcement.ctaLabel || "Learn more";
-  const className =
-    "inline-block mt-4 px-6 py-2.5 bg-primary hover:bg-[#c9281e] text-white rounded-md text-sm font-medium transition-colors";
+  const href = destination(announcement);
+  const photoCount = (announcement.photos ?? []).filter((p) => p?.url).length;
 
-  if (announcement.ctaUrl.startsWith("/")) {
-    return (
-      <Link href={announcement.ctaUrl} className={className}>
-        {label}
-      </Link>
-    );
-  }
+  const inner = (
+    <>
+      <div className="relative h-44 w-full overflow-hidden">
+        <Image
+          src={
+            announcement.imageUrl ||
+            FALLBACK_IMAGE[announcement.category] ||
+            FALLBACK_IMAGE.news
+          }
+          alt=""
+          fill
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          className="object-cover transition duration-500 group-hover:scale-105"
+          unoptimized={Boolean(announcement.imageUrl)}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
+        <CategoryBadge
+          category={announcement.category}
+          className="absolute left-4 top-4"
+        />
+        {photoCount > 1 && (
+          <span className="absolute bottom-3 right-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium text-white">
+            {photoCount} photos
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-1 flex-col p-5">
+        <time
+          dateTime={announcement.eventDate || announcement.createdAt}
+          className="text-xs text-gray-500"
+        >
+          {formatDate(announcement.eventDate || announcement.createdAt)}
+        </time>
+        <h3 className="mt-1.5 text-lg font-bold leading-snug text-[#020022]">
+          {announcement.title}
+        </h3>
+        <p className="mt-2 flex-1 text-sm leading-relaxed text-gray-600">
+          {excerpt(announcement.body)}
+        </p>
+        <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#E43125] group-hover:underline">
+          Read the full story
+          <ArrowRight size={15} aria-hidden />
+        </span>
+      </div>
+    </>
+  );
+
+  const shell =
+    "group flex h-full flex-col overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 transition hover:shadow-lg";
+
   return (
-    <a
-      href={announcement.ctaUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={className}
+    <motion.article
+      initial={{ opacity: 0, y: 30 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.1 }}
+      transition={{ delay: Math.min(index, 5) * 0.07, duration: 0.45 }}
+      className="h-full"
     >
-      {label}
-    </a>
+      {isExternal(href) ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={shell}
+        >
+          {inner}
+        </a>
+      ) : (
+        <Link href={href} className={shell}>
+          {inner}
+        </Link>
+      )}
+    </motion.article>
   );
 };
 
@@ -164,17 +302,9 @@ const Announcements = () => {
         setIsLoading(true);
         setLoadError(null);
         const response = await fetch(`${API_URL}/announcements`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch announcements");
-        }
+        if (!response.ok) throw new Error("Failed to fetch announcements");
         const data: Announcement[] = await response.json();
-        if (!cancelled) {
-          const sorted = [...data].sort(
-            (a, b) =>
-              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          );
-          setAnnouncements(sorted);
-        }
+        if (!cancelled) setAnnouncements(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error("Error fetching announcements:", error);
         if (!cancelled) {
@@ -183,9 +313,7 @@ const Announcements = () => {
           );
         }
       } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
+        if (!cancelled) setIsLoading(false);
       }
     };
     load();
@@ -194,149 +322,115 @@ const Announcements = () => {
     };
   }, [reloadKey]);
 
+  const newest = (a: Announcement, b: Announcement) =>
+    new Date(b.eventDate || b.createdAt).getTime() -
+    new Date(a.eventDate || a.createdAt).getTime();
+
+  /**
+   * League registration leads, then trials, then anything else.
+   *
+   * Sorting these by date put the Indoor notice above Winter League simply
+   * because it was posted later — while Winter League is the one with money
+   * due in a few days. The urgent thing goes first, not the recent one.
+   */
+  const ACTION_ORDER: Partial<Record<AnnouncementCategory, number>> = {
+    league: 0,
+    trial: 1,
+  };
+
+  const actions = announcements
+    .filter(isAction)
+    .sort(
+      (a, b) =>
+        (ACTION_ORDER[a.category] ?? 2) - (ACTION_ORDER[b.category] ?? 2) ||
+        newest(a, b)
+    );
+  const news = announcements.filter((a) => !isAction(a)).sort(newest);
+
   return (
-    <section className="bg-white overflow-hidden">
-      {/* Hero */}
+    <section className="bg-gray-50">
+      {/* ---------------------------------------------------------- hero */}
       <motion.div
-        className="bg-[#FFF3F2] bg-[url('/images/other/tech-bg.png')] bg-cover bg-center px-4 sm:px-6 lg:px-8 pt-8 pb-20"
+        className="bg-[#020022] text-white"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.8 }}
+        transition={{ duration: 0.6 }}
       >
-        <div className="max-w-7xl mx-auto">
-          <motion.div
-            className="flex items-center text-sm text-gray-500 my-4"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-          >
-            <Link href="/" className="hover:text-gray-700">
+        <div className="mx-auto max-w-6xl px-4 pb-14 pt-8 sm:px-6 lg:px-8">
+          <div className="mb-6 flex items-center text-sm text-gray-400">
+            <Link href="/" className="hover:text-white">
               Home
             </Link>
             <span className="mx-2">/</span>
-            <span className="text-red-500 font-medium">News & Trials</span>
-          </motion.div>
-
-          <motion.div
-            className="text-center mb-8"
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.7 }}
-          >
-            <motion.span
-              className="inline-block px-3 py-1 bg-red-100 text-red-500 text-sm font-medium rounded-xl mb-4"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.6, duration: 0.5 }}
-            >
-              Announcements
-            </motion.span>
-            <motion.h1
-              className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7, duration: 0.6 }}
-            >
-              News, Trials &amp; League Registration
-            </motion.h1>
-            <motion.p
-              className="mt-4 text-gray-600 max-w-2xl mx-auto"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.9, duration: 0.6 }}
-            >
-              The latest academy news, upcoming trials and league registration
-              windows — all in one place.
-            </motion.p>
-          </motion.div>
+            <span className="font-medium text-[#E43125]">News &amp; Trials</span>
+          </div>
+          <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-[#E43125]">
+            Excel Pro Soccer Academy
+          </p>
+          <h1 className="text-3xl font-bold sm:text-4xl">
+            News &amp; Registration
+          </h1>
+          <p className="mt-3 max-w-2xl text-gray-300">
+            Match reports, awards and academy news — and everything currently
+            open for registration.
+          </p>
         </div>
       </motion.div>
 
-      {/* Announcement cards */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-10 pb-16">
+      <div className="mx-auto max-w-6xl px-4 pb-20 sm:px-6 lg:px-8">
         {isLoading ? (
-          <div className="bg-white rounded-xl shadow-md border border-gray-100 flex justify-center items-center py-16">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            <span className="ml-3 text-gray-600">Loading announcements...</span>
+          <div className="mt-10 flex items-center justify-center rounded-xl border border-gray-200 bg-white py-16 shadow-sm">
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[#E43125]" />
+            <span className="ml-3 text-gray-600">Loading…</span>
           </div>
         ) : loadError ? (
-          <div className="bg-white rounded-xl shadow-md border border-gray-100 flex flex-col items-center justify-center py-16 px-4 text-center">
-            <XCircle className="w-10 h-10 text-red-500 mb-3" />
-            <p className="text-gray-700 mb-4">{loadError}</p>
+          <div className="mt-10 flex flex-col items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-16 text-center shadow-sm">
+            <XCircle className="mb-3 h-10 w-10 text-[#E43125]" />
+            <p className="mb-4 text-gray-700">{loadError}</p>
             <button
-              onClick={() => setReloadKey((key) => key + 1)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-[#c9281e] text-white rounded-md text-sm font-medium transition-colors"
+              onClick={() => setReloadKey((k) => k + 1)}
+              className="inline-flex items-center gap-2 rounded-md bg-[#E43125] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#c4291f]"
             >
               <RefreshCw size={16} />
               Try again
             </button>
           </div>
         ) : announcements.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-md border border-gray-100 py-16 px-4 text-center text-gray-600">
+          <div className="mt-10 rounded-xl border border-gray-200 bg-white px-4 py-16 text-center text-gray-600 shadow-sm">
             No announcements right now — check back soon.
           </div>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2 items-start">
-            {[...announcements].sort(byImportance).map((announcement, index) => (
-              <motion.article
-                key={announcement.id}
-                className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden flex flex-col"
-                initial={{ opacity: 0, y: 40 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.1 }}
-                transition={{ delay: Math.min(index, 4) * 0.1, duration: 0.5 }}
-              >
-                <div className="relative h-48 w-full">
-                  <Image
-                    src={
-                      announcement.imageUrl ||
-                      FALLBACK_IMAGE[announcement.category] ||
-                      FALLBACK_IMAGE.news
-                    }
-                    alt=""
-                    fill
-                    sizes="(max-width: 768px) 100vw, 50vw"
-                    className="object-cover"
-                    unoptimized={Boolean(announcement.imageUrl)}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+          <>
+            {/* ------------------------------------------- open right now */}
+            {actions.length > 0 && (
+              <div className="-mt-8">
+                <div className="space-y-3">
+                  {actions.map((a) => (
+                    <ActionRow key={a.id} announcement={a} />
+                  ))}
                 </div>
+              </div>
+            )}
 
-                <div className="p-6 md:p-8 flex flex-col flex-1">
-                  <div className="flex flex-wrap items-center gap-3 mb-3">
-                    <CategoryBadge category={announcement.category} />
-                    <time
-                      dateTime={announcement.eventDate || announcement.createdAt}
-                      className="text-sm text-gray-500"
-                    >
-                      {/* For a match report the date of the match matters more
-                          than the day someone got round to writing it up. */}
-                      {formatDate(announcement.eventDate || announcement.createdAt)}
-                    </time>
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-gray-900">
-                    {announcement.title}
+            {/* -------------------------------------------------- the news */}
+            {news.length > 0 && (
+              <div className={actions.length > 0 ? "mt-14" : "mt-10"}>
+                <div className="mb-6 flex items-end justify-between gap-3">
+                  <h2 className="text-2xl font-bold text-[#020022]">
+                    Latest news
                   </h2>
-                  <p className="mt-3 text-gray-600 leading-relaxed whitespace-pre-line flex-1">
-                    {announcement.body}
+                  <p className="text-sm text-gray-500">
+                    {news.length} {news.length === 1 ? "story" : "stories"}
                   </p>
-                  {hasFullPost(announcement) && (
-                    <Link
-                      href={`/announcements/${announcement.slug}`}
-                      className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-                    >
-                      {announcement.photos?.some((p) => p?.url) &&
-                      !(announcement.fullBody ?? "").trim()
-                        ? "See the photos"
-                        : "Read the full story"}
-                      <span aria-hidden>&rarr;</span>
-                    </Link>
-                  )}
-                  <AnnouncementCta announcement={announcement} />
                 </div>
-              </motion.article>
-            ))}
-          </div>
+                <div className="grid items-stretch gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {news.map((a, i) => (
+                    <NewsCard key={a.id} announcement={a} index={i} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </section>

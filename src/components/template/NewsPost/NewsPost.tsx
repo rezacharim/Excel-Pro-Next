@@ -9,6 +9,7 @@ import PhotoGallery from "@/components/molecules/PhotoGallery/PhotoGallery";
 import {
   CATEGORY_LABELS,
   formatPostDate,
+  postStory,
   type Post,
 } from "@/services/news";
 
@@ -26,6 +27,14 @@ const NewsPost = ({ post }: { post: Post }) => {
   const hero = post.imageUrl;
   // The date of the match matters more than the date it got typed up.
   const shownDate = formatPostDate(post.eventDate || post.createdAt);
+
+  // Long-form story if there is one, otherwise the short body — an older
+  // notice written entirely in the body field is still a full post.
+  const story = postStory(post);
+  // Only show the short body as a standing lead when it is genuinely a summary
+  // of something longer. When the body IS the story, printing it here and
+  // again below would show the same words twice.
+  const lead = (post.fullBody ?? "").trim() ? post.body : "";
 
   return (
     <section className="bg-white">
@@ -95,9 +104,9 @@ const NewsPost = ({ post }: { post: Post }) => {
             <h1 className="mt-3 text-2xl sm:text-4xl font-bold text-[#020022]">
               {post.title}
             </h1>
-            {post.body && (
+            {lead && (
               <p className="mt-4 text-gray-600 leading-relaxed whitespace-pre-line">
-                {post.body}
+                {lead}
               </p>
             )}
             {post.ctaUrl && post.ctaLabel && (
@@ -113,9 +122,9 @@ const NewsPost = ({ post }: { post: Post }) => {
       </div>
 
       {/* Full story */}
-      {(post.fullBody ?? "").trim() && (
+      {story && (
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <Story text={post.fullBody ?? ""} />
+          <Story text={story} />
         </div>
       )}
 

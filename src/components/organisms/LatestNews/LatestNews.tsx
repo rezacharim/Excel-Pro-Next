@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import NewsSlider, { type NewsCard } from "./NewsSlider";
 import { isRegistrationPost } from "@/services/news";
@@ -109,9 +110,28 @@ const getAnnouncements = async (): Promise<Announcement[]> => {
  * Home-page news. Fetched on the server so the headlines are in the HTML for
  * Google, then handed to a client component that slides through them.
  */
-const LatestNews = async () => {
+const LatestNews = async ({
+  /**
+   * Rendered in a column beside the stories — in practice the compact fixtures
+   * card. Passed in from the page rather than fetched here so the fixtures and
+   * the announcements load in parallel.
+   */
+  aside,
+}: {
+  aside?: ReactNode;
+} = {}) => {
   const [all, text] = await Promise.all([getAnnouncements(), getSiteText()]);
-  if (all.length === 0) return null;
+
+  // Out of news but still in season: the fixtures card should not disappear
+  // just because nobody has written a story lately.
+  if (all.length === 0) {
+    if (!aside) return null;
+    return (
+      <section className="mx-4 my-16 sm:my-24">
+        <div className="mx-auto max-w-7xl lg:max-w-md lg:mx-auto">{aside}</div>
+      </section>
+    );
+  }
 
   // Stories only. The hero above already carries league registration and
   // trials on its own slides, and showing the same Winter League notice twice
@@ -153,24 +173,38 @@ const LatestNews = async () => {
   return (
     <section className="mx-4 my-16 sm:my-24">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-[#E43125]">
-              {text["news.eyebrow"]}
-            </p>
-            <h2 className="text-3xl font-bold text-[#020022] sm:text-4xl">
-              {text["news.heading"]}
-            </h2>
-          </div>
-          <Link
-            href="/announcements"
-            className="text-sm font-semibold text-[#E43125] hover:underline"
-          >
-            {text["news.link"]} →
-          </Link>
-        </div>
+        {/* Stories take two thirds, the fixtures card the last third. On a
+            phone they stack, news first — a parent scrolling the home page is
+            more likely to be there for a headline than a kick-off time, and
+            the kick-off times have their own page. */}
+        <div
+          className={
+            aside ? "grid gap-8 lg:grid-cols-3 lg:items-start" : undefined
+          }
+        >
+          <div className={aside ? "lg:col-span-2 min-w-0" : undefined}>
+            <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-[#E43125]">
+                  {text["news.eyebrow"]}
+                </p>
+                <h2 className="text-3xl font-bold text-[#020022] sm:text-4xl">
+                  {text["news.heading"]}
+                </h2>
+              </div>
+              <Link
+                href="/announcements"
+                className="text-sm font-semibold text-[#E43125] hover:underline"
+              >
+                {text["news.link"]} →
+              </Link>
+            </div>
 
-        <NewsSlider items={items} />
+            <NewsSlider items={items} narrow={Boolean(aside)} />
+          </div>
+
+          {aside && <div className="min-w-0">{aside}</div>}
+        </div>
       </div>
     </section>
   );

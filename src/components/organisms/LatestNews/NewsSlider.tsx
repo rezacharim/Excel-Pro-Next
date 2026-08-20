@@ -29,8 +29,19 @@ const ROTATE_MS = 6000;
  * anyone who has asked their system for reduced motion — a carousel that keeps
  * moving while you are trying to read it is worse than no carousel.
  */
-const NewsSlider = ({ items }: { items: NewsCard[] }) => {
-  const [perView, setPerView] = useState(3);
+const NewsSlider = ({
+  items,
+  /**
+   * True when the slider is sharing its row with the fixtures card, so it has
+   * two thirds of the width rather than all of it. Three stories in that space
+   * squeezes each headline into four lines; two stay readable.
+   */
+  narrow = false,
+}: {
+  items: NewsCard[];
+  narrow?: boolean;
+}) => {
+  const [perView, setPerView] = useState(narrow ? 2 : 3);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const reducedMotion = useRef(false);
@@ -39,7 +50,18 @@ const NewsSlider = ({ items }: { items: NewsCard[] }) => {
     const wide = window.matchMedia("(min-width: 1024px)");
     const medium = window.matchMedia("(min-width: 640px)");
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const apply = () => setPerView(wide.matches ? 3 : medium.matches ? 2 : 1);
+    const apply = () =>
+      setPerView(
+        narrow
+          ? medium.matches
+            ? 2
+            : 1
+          : wide.matches
+            ? 3
+            : medium.matches
+              ? 2
+              : 1
+      );
     reducedMotion.current = motion.matches;
     apply();
     wide.addEventListener("change", apply);
@@ -48,7 +70,7 @@ const NewsSlider = ({ items }: { items: NewsCard[] }) => {
       wide.removeEventListener("change", apply);
       medium.removeEventListener("change", apply);
     };
-  }, []);
+  }, [narrow]);
 
   const maxIndex = Math.max(0, items.length - perView);
 
@@ -90,7 +112,9 @@ const NewsSlider = ({ items }: { items: NewsCard[] }) => {
           {items.map((item) => (
             <div
               key={item.id}
-              className="w-full flex-shrink-0 px-0 sm:w-1/2 sm:px-3 lg:w-1/3"
+              className={`w-full flex-shrink-0 px-0 sm:w-1/2 sm:px-3 ${
+                narrow ? "" : "lg:w-1/3"
+              }`}
             >
               <Link
                 href={item.href}

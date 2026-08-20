@@ -10,7 +10,7 @@ import ContactForm from "@/components/organisms/ContactForm/ContactForm";
 import InstagramFeed from "@/components/organisms/InstagramFeed/InstagramFeed";
 import { PlayerProvider } from "@/context/PlayerContext/PlayerContext";
 import { fetchAllPlayerMonth } from "@/services/getPlayerMonth";
-import NextGameBoard from "@/components/organisms/NextGame/NextGameBoard";
+import NextGameCard from "@/components/organisms/NextGame/NextGameCard";
 import {
   getRecentFixtures,
   getTeams,
@@ -39,17 +39,21 @@ const Landing = async () => {
           <BannerSlider />
         </section>
       </PlayerProvider>
-      {/* Directly under the banner: league registration, trials and news,
-          pulled from the same announcements the dashboard manages. */}
-      <LatestNews />
-      {/* The next game for each team, with that team's photo, and the games
-          coming up underneath. Renders nothing at all when there are no
-          fixtures, so an out-of-season home page does not carry an empty box. */}
-      <NextGameBoard
-        fixtures={fixtures}
-        results={results}
-        teams={teams}
-        text={siteText}
+      {/* Directly under the banner: news on the left, the next game for each
+          team on the right. The fixtures card used to be a full-width band of
+          its own below this; folding it into the same row saved roughly 600px
+          of home page without dropping anything from it. It renders nothing at
+          all when there are no fixtures, so an out-of-season home page does
+          not carry an empty box. */}
+      <LatestNews
+        aside={
+          <NextGameCard
+            fixtures={fixtures}
+            results={results}
+            teams={teams}
+            text={siteText}
+          />
+        }
       />
       <HeroSection />
       <Summary />

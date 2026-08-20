@@ -31,7 +31,7 @@ const Footer = () => {
           <div className="flex-1 flex flex-col items-end">
             <div className="flex gap-4">
               <Link
-                href="https://www.instagram.com/excel.pro.soccer.academy?igsh=MWp5MjRvZWFvN3Jlaw=="
+                href="https://www.instagram.com/excelprosoccer"
                 aria-label="Instagram"
                 className="text-white hover:text-primary transition-colors"
               >
@@ -52,7 +52,7 @@ const Footer = () => {
             <div>
               <div className="flex gap-3">
                 <Link
-                  href="https://www.instagram.com/excel.pro.soccer.academy?igsh=MWp5MjRvZWFvN3Jlaw=="
+                  href="https://www.instagram.com/excelprosoccer"
                   aria-label="Instagram"
                   className="text-white hover:text-primary transition-colors"
                 >

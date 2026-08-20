@@ -1,371 +1,198 @@
 "use client";
-import { useState, useRef } from 'react';
-import { NextPage } from 'next';
-import Image from 'next/image';
-import { motion, useInView, AnimatePresence } from 'framer-motion';
-import IndicatorDot from '../../atoms/IndicatorDot/IndicatorDot';
-import ArrowButton from '@/components/atoms/ArrowButton/ArrowButton';
 
-// data
-import { testimonials } from './data';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  getTestimonials,
+  initials,
+  type Testimonial as TestimonialItem,
+} from "@/services/testimonials";
 
-const Testimonial: NextPage = () => {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const sectionRef = useRef(null);
-  const isInView = useInView(sectionRef, { once: true, amount: 0.3 });
+const ROTATE_MS = 8000;
 
-  const handlePrevious = () => {
-    setCurrentIndex((prevIndex) => 
-      prevIndex === 0 ? testimonials.length - 1 : prevIndex - 1
-    );
-  };
+/**
+ * What parents and players say about Excel Pro.
+ *
+ * Fed by Dashboard -> Testimonials. If the list is empty the whole section
+ * disappears rather than falling back to anything — this replaced four
+ * invented quotes that shipped with the site template, and a blank space is
+ * far better than a fake endorsement.
+ *
+ * Auto-advances slowly and stops on hover, on focus, and for anyone who has
+ * asked their system for reduced motion. A quote you are halfway through
+ * reading should not slide away.
+ */
+const Testimonial = () => {
+  const [items, setItems] = useState<TestimonialItem[]>([]);
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const reducedMotion = useRef(false);
 
-  const handleNext = () => {
-    setCurrentIndex((prevIndex) => 
-      prevIndex === testimonials.length - 1 ? 0 : prevIndex + 1
-    );
-  };
+  useEffect(() => {
+    let cancelled = false;
+    getTestimonials().then((list) => {
+      if (!cancelled) setItems(list);
+    });
+    reducedMotion.current = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const currentTestimonial = testimonials[currentIndex];
+  const go = useCallback(
+    (delta: number) =>
+      setIndex((i) => (items.length ? (i + delta + items.length) % items.length : 0)),
+    [items.length]
+  );
 
-  // انیمیشن برای عنوان
-  const titleVariants = {
-    hidden: { opacity: 0, x: -30 },
-    visible: { 
-      opacity: 1, 
-      x: 0,
-      transition: { 
-        duration: 0.8, 
-        ease: "easeOut" 
-      }
-    }
-  };
+  useEffect(() => {
+    if (paused || reducedMotion.current || items.length < 2) return;
+    const timer = setInterval(() => go(1), ROTATE_MS);
+    return () => clearInterval(timer);
+  }, [paused, items.length, go]);
 
-  // انیمیشن برای کل کانتینر
-  const containerVariants = {
-    hidden: { opacity: 0, y: 50 },
-    visible: { 
-      opacity: 1, 
-      y: 0,
-      transition: { 
-        duration: 0.9, 
-        ease: "easeOut",
-        staggerChildren: 0.2
-      }
-    }
-  };
+  if (items.length === 0) return null;
 
-  // انیمیشن برای محتوای تستیمونیال
-  const contentVariants = {
-    hidden: { opacity: 0, scale: 0.95 },
-    visible: { 
-      opacity: 1, 
-      scale: 1,
-      transition: { 
-        duration: 0.7, 
-        ease: "easeOut"
-      }
-    }
-  };
-
-  // انیمیشن برای تصویر
-  const imageVariants = {
-    hidden: { opacity: 0, x: 50 },
-    visible: { 
-      opacity: 1, 
-      x: 0,
-      transition: { 
-        duration: 0.9, 
-        ease: "easeOut"
-      }
-    }
-  };
-
-
-  // کنترل جهت انیمیشن اسلاید
-  const [[page, direction], setPage] = useState([0, 0]);
-
-  const updateSlide = (newDirection: number) => {
-    if (newDirection > 0) {
-      handleNext();
-    } else {
-      handlePrevious();
-    }
-    setPage([page + newDirection, newDirection]);
-  };
+  const current = items[Math.min(index, items.length - 1)];
 
   return (
-    <motion.section 
-      ref={sectionRef}
-      className="w-full py-12 px-4 md:px-8 bg-white"
-      initial="hidden"
-      animate={isInView ? "visible" : "hidden"}
-      variants={containerVariants}
+    // Reveals on mount rather than on scroll. useInView was measured before
+    // the fetch resolved, so its ref was still null when the observer was set
+    // up — the section rendered its text and then sat at opacity 0 forever.
+    // The data arriving is the reveal.
+    <motion.section
+      className="w-full bg-white px-4 py-12 md:px-8"
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, ease: "easeOut" }}
     >
-      <div className="max-w-7xl mx-auto">
-        <motion.h2 
-          className="text-3xl md:text-4xl font-bold text-[#121212] mb-10"
-          variants={titleVariants}
+      <div className="mx-auto max-w-7xl">
+        <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-[#E43125]">
+          In their words
+        </p>
+        <h2 className="mb-8 text-3xl font-bold text-[#121212] md:text-4xl">
+          What our families say
+        </h2>
+
+        <div
+          className="overflow-hidden rounded-2xl shadow-lg ring-1 ring-gray-100"
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+          onFocusCapture={() => setPaused(true)}
+          onBlurCapture={() => setPaused(false)}
         >
-          Testimonial
-        </motion.h2>
-        
-        {/* Mobile layout (stacked) */}
-        <motion.div 
-          className="block md:hidden rounded-2xl overflow-hidden shadow-lg"
-          variants={containerVariants}
-        >
-          {/* Image section on top for mobile */}
-          <AnimatePresence initial={false} custom={direction}>
-            <motion.div 
-              key={currentIndex}
-              className="w-full h-48 relative"
-              variants={imageVariants}
-              custom={direction}
-              initial="enter"
-              animate="center"
-              exit="exit"
-            >
-              <Image
-                src={currentTestimonial.image_index}
-                alt="Parent and player testimonial — Excel Pro Soccer Academy Markham"
-                fill
-                sizes="(max-width: 768px) 100vw, 50vw"
-                className="object-cover object-center object-top" 
-                priority
-              />
-            </motion.div>
-          </AnimatePresence>
-          
-          {/* Testimonial content below for mobile */}
-          <motion.div 
-            className="w-full bg-white p-6 flex flex-col z-10 relative min-h-[250px]"
-            variants={contentVariants}
-          >
-            {/* Quotation marks background */}
-            <motion.div 
-              className="absolute top-6 left-6 opacity-40 scale-75 pointer-events-none"
-              initial={{ opacity: 0, rotate: -10 }}
-              animate={{ opacity: 0.4, rotate: 0 }}
-              transition={{ duration: 1.2, delay: 0.3 }}
-            >
-              <svg width="219" height="172" viewBox="0 0 219 172" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <g>
-                  <path opacity="0.3" d="M14.6468 81.3625V81.3654C14.6468 86.6835 18.8957 90.9324 24.2138 90.9324H80.4335V166.25H5.11594V81.3654C5.11594 42.4979 34.326 10.3116 71.8874 5.59208V15.1819C56.8496 17.3803 42.9536 24.6443 32.5443 35.8468C21.0497 48.2174 14.6566 64.4759 14.6468 81.3625ZM213.876 90.9324V166.25H138.559V81.3654C138.559 42.4969 167.772 10.3052 205.419 5.59062V15.1726C173.004 19.8435 148.09 47.7017 148.09 81.3654C148.09 86.6835 152.339 90.9324 157.657 90.9324H213.876Z" stroke="#FC0D1C" strokeWidth="10.2319"/>
-                </g>
-              </svg>
-            </motion.div>
-            
-            {/* Main content area */}
-            <AnimatePresence initial={false} mode="wait">
-              <motion.div 
-                key={currentIndex}
-                className="relative z-10 flex-1 mb-6"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.4 }}
-              >
-                <div className="overflow-auto max-h-[120px]">
-                  <p className="text-base text-gray-700">{currentTestimonial.text}</p>
-                </div>
-              </motion.div>
-            </AnimatePresence>
-            
-            {/* User info area */}
-            <AnimatePresence initial={false} mode="wait">
-              <motion.div 
-                key={currentIndex}
-                className="flex items-center mb-6"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.5 }}
-              >
-                <motion.div 
-                  className="w-10 h-10 rounded-full overflow-hidden mr-3 flex-shrink-0"
-                  whileHover={{ scale: 1.1 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <Image 
-                    src={currentTestimonial.avatar}
-                    alt={currentTestimonial.name}
-                    width={40}
-                    height={40}
-                    className="object-cover"
+          <div className="flex flex-col md:flex-row">
+            {/* Photo. Optional on purpose — a real quote with no picture is
+                worth more than a real quote with a stock one. */}
+            <div className="relative h-56 w-full flex-shrink-0 bg-[#020022] md:h-auto md:w-2/5">
+              <AnimatePresence mode="wait">
+                {current.imageUrl ? (
+                  <motion.img
+                    key={current.id}
+                    src={current.imageUrl}
+                    alt={`${current.name}, Excel Pro Soccer Academy`}
+                    className="absolute inset-0 h-full w-full object-cover"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.4 }}
                   />
-                </motion.div>
-                <div>
-                  <p className="font-bold text-base text-[#121212]">{currentTestimonial.name}</p>
-                  <p className="text-xs text-gray-500">{currentTestimonial.location}</p>
-                </div>
-              </motion.div>
-            </AnimatePresence>
-            
-            {/* Navigation controls */}
-            <motion.div 
-              className="flex justify-between items-center"
-              variants={contentVariants}
-            >
-              <div className="flex space-x-2">
-                {testimonials.map((_, index) => (
-                  <IndicatorDot 
-                    key={index}
-                    bgActiveColor="bg-black"
-                    isActive={index === currentIndex}
-                    onClick={() => setCurrentIndex(index)}
-                  />
-                ))}
-              </div>
-              
-              <div className="flex space-x-3">
-                <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
-                  <ArrowButton 
-                    direction="left"
-                    onClick={() => updateSlide(-1)}
-                    variant="gray"
-                  />
-                </motion.div>
-                <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
-                  <ArrowButton
-                    direction="right"
-                    onClick={() => updateSlide(1)}
-                    variant="primary"
-                  />
-                </motion.div>
-              </div>
-            </motion.div>
-          </motion.div>
-        </motion.div>
-        
-        {/* Desktop layout (side-by-side) */}
-        <motion.div 
-          className="hidden md:flex rounded-2xl overflow-hidden shadow-lg"
-          variants={containerVariants}
-        >
-          {/* Left side - Testimonial content section */}
-          <motion.div 
-            className="w-3/5 bg-white p-8 lg:p-12 flex flex-col justify-between z-10 relative"
-            variants={contentVariants}
-          >
-            {/* Quotation marks background (light red/pink) */}
-            <motion.div 
-              className="absolute top-12 left-12 opacity-40 pointer-events-none"
-              initial={{ opacity: 0, rotate: -10 }}
-              animate={{ opacity: 0.4, rotate: 0 }}
-              transition={{ duration: 1.2, delay: 0.5 }}
-            >
-              <svg width="219" height="172" viewBox="0 0 219 172" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <g>
-                  <path opacity="0.3" d="M14.6468 81.3625V81.3654C14.6468 86.6835 18.8957 90.9324 24.2138 90.9324H80.4335V166.25H5.11594V81.3654C5.11594 42.4979 34.326 10.3116 71.8874 5.59208V15.1819C56.8496 17.3803 42.9536 24.6443 32.5443 35.8468C21.0497 48.2174 14.6566 64.4759 14.6468 81.3625ZM213.876 90.9324V166.25H138.559V81.3654C138.559 42.4969 167.772 10.3052 205.419 5.59062V15.1726C173.004 19.8435 148.09 47.7017 148.09 81.3654C148.09 86.6835 152.339 90.9324 157.657 90.9324H213.876Z" stroke="#FC0D1C" strokeWidth="10.2319"/>
-                </g>
-              </svg>
-            </motion.div>
-            
-            {/* Main content with fixed height */}
-            <div className="min-h-[300px] flex flex-col">
-              {/* Testimonial text */}
-              <AnimatePresence initial={false} mode="wait">
-                <motion.div 
-                  key={currentIndex}
-                  className="relative z-10 mb-8 flex-grow overflow-auto"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.5 }}
-                >
-                  <p className="text-lg text-gray-700">{currentTestimonial.text}</p>
-                </motion.div>
-              </AnimatePresence>
-              
-              {/* User information */}
-              <AnimatePresence initial={false} mode="wait">
-                <motion.div 
-                  key={currentIndex}
-                  className="flex items-center mb-8"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  transition={{ duration: 0.5 }}
-                >
-                  <motion.div 
-                    className="w-12 h-12 rounded-full overflow-hidden mr-4 flex-shrink-0"
-                    whileHover={{ scale: 1.1 }}
-                    transition={{ duration: 0.3 }}
+                ) : (
+                  <motion.div
+                    key={`initials-${current.id}`}
+                    className="absolute inset-0 flex items-center justify-center"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.4 }}
                   >
-                    <Image 
-                      src={currentTestimonial.avatar}
-                      alt={currentTestimonial.name}
-                      width={48}
-                      height={48}
-                      className="object-cover"
-                    />
+                    <span className="flex h-24 w-24 items-center justify-center rounded-full bg-[#E43125] text-3xl font-bold text-white">
+                      {initials(current.name)}
+                    </span>
                   </motion.div>
-                  <div>
-                    <p className="font-bold text-lg text-[#121212]">{currentTestimonial.name}</p>
-                    <p className="text-sm text-gray-500">{currentTestimonial.location}</p>
-                  </div>
-                </motion.div>
+                )}
               </AnimatePresence>
-              
-              {/* Navigation controls */}
-              <motion.div 
-                className="flex justify-between items-center"
-                variants={contentVariants}
-              >
-                <div className="flex space-x-2">
-                  {testimonials.map((_, index) => (
-                    <IndicatorDot 
-                      key={index}
-                      bgActiveColor="bg-black"
-                      isActive={index === currentIndex}
-                      onClick={() => setCurrentIndex(index)}
-                    />
-                  ))}
-                </div>
-                
-                <div className="flex space-x-4">
-                  <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
-                    <ArrowButton 
-                      direction="left"
-                      onClick={() => updateSlide(-1)}
-                      variant="gray"
-                    />
-                  </motion.div>
-                  <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
-                    <ArrowButton
-                      direction="right"
-                      onClick={() => updateSlide(1)}
-                      variant="primary"
-                    />
-                  </motion.div>
-                </div>
-              </motion.div>
             </div>
-          </motion.div>
-          
-          {/* Right side - Image section */}
-          <AnimatePresence initial={false} custom={direction}>
-            <motion.div 
-              key={currentIndex}
-              className="w-2/5 relative"
-              variants={imageVariants}
-              custom={direction}
-              initial="enter"
-              animate="center"
-              exit="exit"
-            >
-              <Image
-                src={currentTestimonial.image_index}
-                alt="Parent and player testimonial — Excel Pro Soccer Academy Markham"
-                fill
-                sizes="(max-width: 1024px) 40vw, 30vw"
-                className="object-cover object-top"
-                priority
-              />
-            </motion.div>
-          </AnimatePresence>
-        </motion.div>
+
+            {/* Quote */}
+            <div className="relative flex w-full flex-col justify-between p-6 sm:p-10 md:w-3/5">
+              <svg
+                aria-hidden
+                viewBox="0 0 219 172"
+                className="pointer-events-none absolute right-6 top-6 h-14 w-16 opacity-15 sm:h-20 sm:w-24"
+                fill="none"
+              >
+                <path
+                  d="M14.6468 81.3625V81.3654C14.6468 86.6835 18.8957 90.9324 24.2138 90.9324H80.4335V166.25H5.11594V81.3654C5.11594 42.4979 34.326 10.3116 71.8874 5.59208V15.1819C56.8496 17.3803 42.9536 24.6443 32.5443 35.8468C21.0497 48.2174 14.6566 64.4759 14.6468 81.3625ZM213.876 90.9324V166.25H138.559V81.3654C138.559 42.4969 167.772 10.3052 205.419 5.59062V15.1726C173.004 19.8435 148.09 47.7017 148.09 81.3654C148.09 86.6835 152.339 90.9324 157.657 90.9324H213.876Z"
+                  stroke="#FC0D1C"
+                  strokeWidth="10.2319"
+                />
+              </svg>
+
+              <AnimatePresence mode="wait">
+                <motion.blockquote
+                  key={current.id}
+                  className="relative z-10"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -12 }}
+                  transition={{ duration: 0.35 }}
+                >
+                  {/* Right padding keeps the first line clear of the quote
+                      mark in the corner. */}
+                  <p className="whitespace-pre-line pr-16 text-lg leading-relaxed text-gray-700 sm:pr-24 sm:text-xl">
+                    {current.quote}
+                  </p>
+                  <footer className="mt-6">
+                    <p className="text-base font-bold text-[#121212]">
+                      {current.name}
+                    </p>
+                    {current.role && (
+                      <p className="text-sm text-gray-500">{current.role}</p>
+                    )}
+                  </footer>
+                </motion.blockquote>
+              </AnimatePresence>
+
+              {items.length > 1 && (
+                <div className="relative z-10 mt-8 flex items-center justify-between">
+                  <div className="flex gap-2">
+                    {items.map((item, i) => (
+                      <button
+                        key={item.id}
+                        onClick={() => setIndex(i)}
+                        aria-label={`Show what ${item.name} said`}
+                        aria-current={i === index}
+                        className={`h-2 rounded-full transition-all ${
+                          i === index ? "w-6 bg-[#E43125]" : "w-2 bg-gray-300"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => go(-1)}
+                      aria-label="Previous testimonial"
+                      className="rounded-full border border-gray-200 p-2 text-[#020022] transition hover:bg-gray-50"
+                    >
+                      <ChevronLeft size={18} />
+                    </button>
+                    <button
+                      onClick={() => go(1)}
+                      aria-label="Next testimonial"
+                      className="rounded-full border border-gray-200 p-2 text-[#020022] transition hover:bg-gray-50"
+                    >
+                      <ChevronRight size={18} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </motion.section>
   );

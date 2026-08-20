@@ -3,8 +3,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { RefreshCw, XCircle, ArrowRight } from "lucide-react";
+import { RefreshCw, XCircle, ArrowRight, ChevronDown } from "lucide-react";
 import { isRegistrationPost } from "@/services/news";
+import Story from "@/components/molecules/Story/Story";
 
 export type AnnouncementCategory =
   | "league"
@@ -133,67 +134,114 @@ const isExternal = (href: string) => !href.startsWith("/");
 /**
  * A registration notice, compressed to one row.
  *
- * Title, one line, and the button. Everything else lives on the post's own
- * page. This is the whole point of the redesign: the two things a parent must
- * act on stay at the top and stay small, so the news underneath is reachable
- * without scrolling past two thousand words.
+ * Title, one line, the button — and "Full details" opens the rest **in place**
+ * rather than navigating anywhere.
+ *
+ * It used to link to the post's own page, which quietly did nothing for the
+ * three notices that matter most: Winter League, Trials and Indoor all predate
+ * the slug column, so they have no page, the link never rendered, and the only
+ * clickable thing left was the button. A parent who wanted to read the payment
+ * schedule got an e-Transfer form or a mail client instead.
+ *
+ * Expanding in place needs no slug, no migration and no navigation. It is also
+ * simply better for a notice: the details are the payment schedule and the
+ * dates, and you want them next to the button, not one page away from it.
  */
 const ActionRow = ({ announcement }: { announcement: Announcement }) => {
-  const href = destination(announcement);
+  const [open, setOpen] = useState(false);
   const label = announcement.ctaLabel || "Read more";
   const buttonClass =
     "shrink-0 rounded-lg bg-[#E43125] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#c4291f]";
+  const detailsId = `notice-${announcement.id}`;
+
+  // The long text lives in fullBody when there is one and body otherwise —
+  // these older notices were written entirely into body.
+  const details = (announcement.fullBody ?? "").trim() || announcement.body;
+  const hasMore = details.trim().length > 140;
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center">
-      <div className="min-w-0 flex-1">
-        <div className="mb-1.5 flex flex-wrap items-center gap-2">
-          <CategoryBadge category={announcement.category} />
-          <time
-            dateTime={announcement.eventDate || announcement.createdAt}
-            className="text-xs text-gray-500"
-          >
-            {formatDate(announcement.eventDate || announcement.createdAt)}
-          </time>
+    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="min-w-0 flex-1">
+          <div className="mb-1.5 flex flex-wrap items-center gap-2">
+            <CategoryBadge category={announcement.category} />
+            <time
+              dateTime={announcement.eventDate || announcement.createdAt}
+              className="text-xs text-gray-500"
+            >
+              {formatDate(announcement.eventDate || announcement.createdAt)}
+            </time>
+          </div>
+          <h3 className="text-base font-bold leading-snug text-[#020022] sm:text-lg">
+            {announcement.title}
+          </h3>
+          {!open && (
+            <p className="mt-1 text-sm text-gray-600">
+              {excerpt(announcement.body, 130)}
+            </p>
+          )}
         </div>
-        <h3 className="text-base font-bold leading-snug text-[#020022] sm:text-lg">
-          {announcement.title}
-        </h3>
-        <p className="mt-1 text-sm text-gray-600">
-          {excerpt(announcement.body, 130)}
-        </p>
-      </div>
 
-      <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
-        {announcement.ctaUrl ? (
-          isExternal(announcement.ctaUrl) ? (
-            <a
-              href={announcement.ctaUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+        <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
+          {announcement.ctaUrl ? (
+            isExternal(announcement.ctaUrl) ? (
+              <a
+                href={announcement.ctaUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonClass}
+              >
+                {label}
+              </a>
+            ) : (
+              <Link href={announcement.ctaUrl} className={buttonClass}>
+                {label}
+              </Link>
+            )
+          ) : (
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
               className={buttonClass}
             >
-              {label}
-            </a>
-          ) : (
-            <Link href={announcement.ctaUrl} className={buttonClass}>
-              {label}
-            </Link>
-          )
-        ) : (
-          <Link href={href} className={buttonClass}>
-            Read more
-          </Link>
-        )}
-        {hasPage(announcement) && announcement.ctaUrl && (
-          <Link
-            href={`/announcements/${announcement.slug}`}
-            className="text-xs font-medium text-gray-500 hover:text-[#E43125] hover:underline"
-          >
-            Full details →
-          </Link>
-        )}
+              Read more
+            </button>
+          )}
+          {hasMore && (
+            <button
+              type="button"
+              onClick={() => setOpen((o) => !o)}
+              aria-expanded={open}
+              aria-controls={detailsId}
+              className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 transition hover:text-[#E43125] hover:underline"
+            >
+              {open ? "Hide details" : "Full details"}
+              <ChevronDown
+                size={13}
+                aria-hidden
+                className={`transition-transform ${open ? "rotate-180" : ""}`}
+              />
+            </button>
+          )}
+        </div>
       </div>
+
+      {open && (
+        <div
+          id={detailsId}
+          className="mt-5 border-t border-gray-100 pt-5 text-[15px]"
+        >
+          <Story text={details} />
+          {hasPage(announcement) && (
+            <Link
+              href={`/announcements/${announcement.slug}`}
+              className="mt-2 inline-block text-sm font-medium text-[#E43125] hover:underline"
+            >
+              Open as its own page →
+            </Link>
+          )}
+        </div>
+      )}
     </div>
   );
 };

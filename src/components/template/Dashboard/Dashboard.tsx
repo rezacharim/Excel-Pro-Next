@@ -19,6 +19,7 @@ import Admins from "@/components/organisms/Dashboard/Admins/Admins";
 import Activity from "@/components/organisms/Dashboard/Activity/Activity";
 import League from "@/components/organisms/Dashboard/League/League";
 import CoachesAdmin from "@/components/organisms/Dashboard/Coaches/Coaches";
+import TestimonialsAdmin from "@/components/organisms/Dashboard/Testimonials/Testimonials";
 
 const Dashboard = () => {
   const { activeMenuId } = useMenuStore();
@@ -63,6 +64,8 @@ const Dashboard = () => {
         <League />
       ) : activeMenuId === 15 ? (
         <CoachesAdmin />
+      ) : activeMenuId === 16 ? (
+        <TestimonialsAdmin />
       ) : (
         ""
       )}

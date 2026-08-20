@@ -5,6 +5,7 @@ import {
   LayoutGrid,
   Megaphone,
   MessageCircle,
+  Quote,
   PiggyBank,
   Settings,
   ClipboardList,
@@ -92,6 +93,12 @@ export const navigationItems: NavigationItemsTypes[] = [
     id: 15,
     icon: <UserRound className="w-5 h-5 text-gray-500" />,
     label: "Coaches",
+    active: false,
+  },
+  {
+    id: 16,
+    icon: <Quote className="w-5 h-5 text-gray-500" />,
+    label: "Testimonials",
     active: false,
   },
   {

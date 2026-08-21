@@ -7,11 +7,19 @@ import {
   CheckCircle2,
   Download,
   Loader2,
+  Plus,
   RefreshCw,
   Search,
   Undo2,
   XCircle,
 } from "lucide-react";
+import RecordPaymentDialog, {
+  type RecordPaymentPayload,
+  type RecordPaymentTarget,
+} from "./RecordPaymentDialog";
+import AddRegistrationDialog, {
+  type AddRegistrationPayload,
+} from "./AddRegistrationDialog";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -104,6 +112,8 @@ const League = () => {
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"registrations" | "outstanding">("registrations");
   const [isExporting, setIsExporting] = useState(false);
+  const [payTarget, setPayTarget] = useState<RecordPaymentTarget | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
 
   const showToast = useCallback((kind: "success" | "error", message: string) => {
     setToast({ kind, message });
@@ -151,8 +161,16 @@ const League = () => {
     return () => clearTimeout(t);
   }, [load]);
 
-  /** Marking money as received is the one action that confirms a roster spot. */
-  const recordPayment = async (registrationId: number, installment: number) => {
+  /**
+   * Marking money as received is the one action that confirms a roster spot.
+   *
+   * Throws rather than showing a toast on failure: the dialog stays open with
+   * the error next to the fields, so a mistyped amount can be corrected
+   * without retyping the rest.
+   */
+  const recordPayment = async (payload: RecordPaymentPayload) => {
+    if (!payTarget) return;
+    const registrationId = payTarget.registrationId;
     setBusyId(registrationId);
     try {
       const res = await fetch(
@@ -160,20 +178,45 @@ const League = () => {
         {
           method: "POST",
           headers: { ...auth, "Content-Type": "application/json" },
-          body: JSON.stringify({ installment, method: "etransfer" }),
+          body: JSON.stringify(payload),
         }
       );
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.message || "Could not record the payment");
       }
-      showToast("success", `Payment ${installment} recorded — receipt emailed`);
+      setPayTarget(null);
+      showToast(
+        "success",
+        `Payment ${payload.installment} recorded — receipt emailed`
+      );
       load();
-    } catch (error) {
-      showToast("error", error instanceof Error ? error.message : "Failed");
     } finally {
       setBusyId(null);
     }
+  };
+
+  /** Adding a family who registered somewhere other than the website form. */
+  const addRegistration = async (payload: AddRegistrationPayload) => {
+    const res = await fetch(`${API_URL}/league/admin/registrations`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        Array.isArray(body.message)
+          ? body.message.join(", ")
+          : body.message || "Could not add the registration"
+      );
+    }
+    setIsAdding(false);
+    showToast(
+      "success",
+      `${payload.firstName} ${payload.lastName} added — record the first payment to hold the spot`
+    );
+    load();
   };
 
   const reversePayment = async (registrationId: number, installment: number) => {
@@ -279,6 +322,13 @@ const League = () => {
           >
             <RefreshCw size={16} />
             Refresh
+          </button>
+          <button
+            onClick={() => setIsAdding(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50"
+          >
+            <Plus size={16} />
+            Add registration
           </button>
           <button
             onClick={exportRoster}
@@ -489,7 +539,14 @@ const League = () => {
                             </div>
                           ) : (
                             <button
-                              onClick={() => recordPayment(r.id, i.number)}
+                              onClick={() =>
+                                setPayTarget({
+                                  registrationId: r.id,
+                                  player: r.player,
+                                  installment: i.number,
+                                  expected: i.amount,
+                                })
+                              }
                               disabled={busyId === r.id}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-semibold hover:bg-green-50 hover:border-green-300 disabled:opacity-50"
                             >
@@ -588,6 +645,20 @@ const League = () => {
           </table>
         </div>
       )}
+
+      <RecordPaymentDialog
+        target={payTarget}
+        onCancel={() => setPayTarget(null)}
+        onSubmit={recordPayment}
+      />
+
+      <AddRegistrationDialog
+        open={isAdding}
+        ageGroups={AGE_GROUPS}
+        seasonName={seasonName}
+        onCancel={() => setIsAdding(false)}
+        onSubmit={addRegistration}
+      />
     </div>
   );
 };

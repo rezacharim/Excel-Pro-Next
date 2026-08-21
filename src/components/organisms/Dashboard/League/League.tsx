@@ -19,6 +19,7 @@ import RecordPaymentDialog, {
 } from "./RecordPaymentDialog";
 import AddRegistrationDialog, {
   type AddRegistrationPayload,
+  type LeagueMember,
 } from "./AddRegistrationDialog";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -114,6 +115,8 @@ const League = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [payTarget, setPayTarget] = useState<RecordPaymentTarget | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [members, setMembers] = useState<LeagueMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
 
   const showToast = useCallback((kind: "success" | "error", message: string) => {
     setToast({ kind, message });
@@ -195,6 +198,22 @@ const League = () => {
       setBusyId(null);
     }
   };
+
+  /**
+   * The member list behind the picker. Fetched when the dialog is first
+   * opened rather than with the page: most visits to this screen are to
+   * record a payment, and the whole membership roll is a lot to carry for a
+   * dialog that may never be opened.
+   */
+  useEffect(() => {
+    if (!isAdding || members.length > 0 || membersLoading) return;
+    setMembersLoading(true);
+    fetch(`${API_URL}/membership/overview`, { headers: auth })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setMembers(Array.isArray(data) ? data : []))
+      .catch(() => setMembers([]))
+      .finally(() => setMembersLoading(false));
+  }, [isAdding, members.length, membersLoading, auth]);
 
   /** Adding a family who registered somewhere other than the website form. */
   const addRegistration = async (payload: AddRegistrationPayload) => {
@@ -656,6 +675,11 @@ const League = () => {
         open={isAdding}
         ageGroups={AGE_GROUPS}
         seasonName={seasonName}
+        members={members}
+        membersLoading={membersLoading}
+        // So the picker can grey out anyone already on this season's roster
+        // instead of letting the save fail on the duplicate check.
+        registeredNames={rows.map((r) => r.player)}
         onCancel={() => setIsAdding(false)}
         onSubmit={addRegistration}
       />

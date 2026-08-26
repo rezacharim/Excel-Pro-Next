@@ -44,7 +44,7 @@ const PrimaryIcon: NextPage<PrimaryIconProps> = forwardRef(
             height={height}
             className="object-contain"
             loading="lazy"
-            quality="100"
+            unoptimized
           />
         </div>
 

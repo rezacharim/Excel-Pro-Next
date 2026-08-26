@@ -21,8 +21,8 @@ const Slide: NextPage<SlideProps> = ({ player_name, image_url }) => {
             ? `${player_name} — Excel Pro Soccer Academy player of the month`
             : "Excel Pro Soccer Academy youth teams in Markham, Ontario"
         }
-        quality="100"
         fill={true}
+        sizes="100vw"
         priority={true}
       />
       {shouldShowPlayerName && (

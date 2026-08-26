@@ -651,6 +651,7 @@ const Overview = () => {
                                   <Image
                                     src={player.photoUrl}
                                     alt={player.fullname}
+                                    unoptimized
                                     width={80}
                                     height={80}
                                     className="w-full h-full object-cover"
@@ -745,6 +746,7 @@ const Overview = () => {
                   <Image
                     src={selectedPlayer.photoUrl}
                     alt={selectedPlayer.fullname}
+                    unoptimized
                     loading="lazy"
                     width={80}
                     height={80}
@@ -960,6 +962,7 @@ const Overview = () => {
                   <div className="max-w-full h-40 overflow-hidden border border-gray-200 rounded-lg">
                     <Image
                       src={selectedPlayer.NationalIdCard}
+                      unoptimized
                       width={180}
                       height={120}
                       loading="lazy"

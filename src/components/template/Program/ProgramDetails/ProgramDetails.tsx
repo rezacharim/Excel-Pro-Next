@@ -99,7 +99,6 @@ const ProgramDetails: NextPage<ProgramType> = ({ program, decodedSlug }) => {
               fill
               sizes="(max-width: 768px) 100vw, 50vw"
               className="object-center object-cover"
-              quality="100"
             />
           </div>
           {/* Schedule information overlay with staggered animations */}

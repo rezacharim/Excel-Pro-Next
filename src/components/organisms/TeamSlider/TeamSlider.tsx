@@ -53,6 +53,7 @@ const TeamSlider: NextPage<SliderProps> = ({ teamImages }) => {
                 alt={image.title ? image.title : image.file_name}
                 width={500}
                 height={300}
+                unoptimized
                 className="w-full h-auto"
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 33vw, 25vw"
                 loading={index === 0 ? "eager" : "lazy"} // 🔥 این خط اضافه شده

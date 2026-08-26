@@ -617,6 +617,7 @@ const Gallery: NextPage = () => {
                 {item.mime_type.startsWith("image/") ? (
                   <Image
                     src={`${item.image_url}`}
+                    unoptimized
                     alt={item.title}
                     fill
                   className="object-cover object-top rounded-md"
@@ -731,6 +732,7 @@ const Gallery: NextPage = () => {
                         <Image
                           src={previewUrl}
                           alt="Preview"
+                          unoptimized
                           width={200}
                           height={150}
                           className="object-cover rounded-md"

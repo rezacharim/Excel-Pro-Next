@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
 import Layout from "@/components/template/Register/Layout";
 import "../globals.css";
+import GoogleAnalytics from "@/components/atoms/GoogleAnalytics/GoogleAnalytics";
 
 
 const montserrat = Montserrat({
@@ -44,6 +45,7 @@ export default function RegisterLayout({
   return (
     <html lang="en-US" dir="ltr">
       <body className={`${montserrat.className} antialiased`}>
+        <GoogleAnalytics />
         <Layout>{children}</Layout>
       </body>
     </html>

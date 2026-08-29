@@ -7,9 +7,11 @@ import {
   CheckCircle2,
   Download,
   Loader2,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
+  Settings,
   Undo2,
   XCircle,
 } from "lucide-react";
@@ -21,6 +23,14 @@ import AddRegistrationDialog, {
   type AddRegistrationPayload,
   type LeagueMember,
 } from "./AddRegistrationDialog";
+import EditRegistrationDialog, {
+  type EditRegistrationPayload,
+  type EditRegistrationTarget,
+} from "./EditRegistrationDialog";
+import SeasonSettingsDialog, {
+  type LeagueSeasonSettings,
+  type SeasonSettingsPayload,
+} from "./SeasonSettingsDialog";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -117,6 +127,11 @@ const League = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [members, setMembers] = useState<LeagueMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
+  const [editTarget, setEditTarget] = useState<EditRegistrationTarget | null>(
+    null
+  );
+  const [season, setSeason] = useState<LeagueSeasonSettings | null>(null);
+  const [isEditingSeason, setIsEditingSeason] = useState(false);
 
   const showToast = useCallback((kind: "success" | "error", message: string) => {
     setToast({ kind, message });
@@ -148,6 +163,7 @@ const League = () => {
       setRows(data.rows ?? []);
       setTotals(data.totals ?? null);
       setSeasonName(data.season?.name ?? "");
+      setSeason(data.season ?? null);
       if (outRes.ok) setOutstanding(await outRes.json());
     } catch (error) {
       setLoadError(
@@ -214,6 +230,61 @@ const League = () => {
       .catch(() => setMembers([]))
       .finally(() => setMembersLoading(false));
   }, [isAdding, members.length, membersLoading, auth]);
+
+  /**
+   * Correcting one registration — fee, dates, status, age group.
+   *
+   * Throws on failure so the dialog can show the error beside the fields
+   * rather than closing and losing what was typed.
+   */
+  const editRegistration = async (payload: EditRegistrationPayload) => {
+    if (!editTarget) return;
+    const res = await fetch(
+      `${API_URL}/league/admin/registrations/${editTarget.id}`,
+      {
+        method: "PATCH",
+        headers: { ...auth, "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }
+    );
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        Array.isArray(body.message)
+          ? body.message.join(", ")
+          : body.message || "Could not save the changes"
+      );
+    }
+    setEditTarget(null);
+    showToast(
+      "success",
+      payload.resetFeesToSeason
+        ? "Put back on the season rate"
+        : "Registration updated"
+    );
+    load();
+  };
+
+  /** Fees, deadlines and capacity for the season itself. */
+  const saveSeason = async (payload: SeasonSettingsPayload) => {
+    if (!season) return;
+    const res = await fetch(`${API_URL}/league/admin/seasons/${season.id}`, {
+      method: "PATCH",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        Array.isArray(body.message)
+          ? body.message.join(", ")
+          : body.message || "Could not save the season"
+      );
+    }
+    setIsEditingSeason(false);
+    showToast("success", "Season updated — new registrations use it from now");
+    load();
+  };
 
   /** Adding a family who registered somewhere other than the website form. */
   const addRegistration = async (payload: AddRegistrationPayload) => {
@@ -341,6 +412,14 @@ const League = () => {
           >
             <RefreshCw size={16} />
             Refresh
+          </button>
+          <button
+            onClick={() => setIsEditingSeason(true)}
+            disabled={!season}
+            className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+          >
+            <Settings size={16} />
+            Season settings
           </button>
           <button
             onClick={() => setIsAdding(true)}
@@ -490,7 +569,7 @@ const League = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 text-left">
-                  {["Player", "Age", "Status", "Paid", "1st payment", "2nd payment", "Contact"].map(
+                  {["Player", "Age", "Status", "Paid", "1st payment", "2nd payment", "Contact", ""].map(
                     (h) => (
                       <th
                         key={h}
@@ -585,6 +664,28 @@ const League = () => {
                         <a href={`tel:${r.phone}`} className="hover:underline">
                           {r.phone}
                         </a>
+                      </td>
+
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <button
+                          onClick={() =>
+                            setEditTarget({
+                              id: r.id,
+                              player: r.player,
+                              ageGroup: r.ageGroup,
+                              status: r.status,
+                              isLate: r.isLate,
+                              feeTotal: r.feeTotal,
+                              amountPaid: r.amountPaid,
+                              installments: r.installments,
+                            })
+                          }
+                          title="Change fee, dates or status"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 hover:text-[#020022]"
+                        >
+                          <Pencil size={13} />
+                          Edit
+                        </button>
                       </td>
                     </tr>
                   );
@@ -682,6 +783,20 @@ const League = () => {
         registeredNames={rows.map((r) => r.player)}
         onCancel={() => setIsAdding(false)}
         onSubmit={addRegistration}
+      />
+
+      <EditRegistrationDialog
+        target={editTarget}
+        ageGroups={AGE_GROUPS}
+        onCancel={() => setEditTarget(null)}
+        onSubmit={editRegistration}
+      />
+
+      <SeasonSettingsDialog
+        season={season}
+        open={isEditingSeason}
+        onCancel={() => setIsEditingSeason(false)}
+        onSubmit={saveSeason}
       />
     </div>
   );

@@ -18,6 +18,12 @@ export interface LeagueSeasonSettings {
 }
 
 export interface SeasonSettingsPayload {
+  /**
+   * Always sent, even when unchanged. The PATCH route validates the body
+   * against the full create-season DTO, where name is the one required
+   * field — leaving it out fails with "name must be a string".
+   */
+  name: string;
   feeTotal?: number;
   feeLate?: number;
   firstPaymentDue?: string;
@@ -57,6 +63,7 @@ const SeasonSettingsDialog = ({
   onCancel: () => void;
   onSubmit: (payload: SeasonSettingsPayload) => Promise<void>;
 }) => {
+  const [name, setName] = useState("");
   const [feeTotal, setFeeTotal] = useState("");
   const [feeLate, setFeeLate] = useState("");
   const [firstDue, setFirstDue] = useState("");
@@ -69,6 +76,7 @@ const SeasonSettingsDialog = ({
 
   useEffect(() => {
     if (!open || !season) return;
+    setName(season.name ?? "");
     setFeeTotal(String(season.feeTotal ?? ""));
     setFeeLate(String(season.feeLate ?? ""));
     setFirstDue(dateOnly(season.firstPaymentDue));
@@ -97,10 +105,15 @@ const SeasonSettingsDialog = ({
   const priceNow = lateActive ? Number(feeLate) : Number(feeTotal);
 
   const save = async () => {
+    if (!name.trim()) {
+      setError("The season needs a name.");
+      return;
+    }
     setIsSaving(true);
     setError(null);
     try {
       await onSubmit({
+        name: name.trim(),
         feeTotal: Number(feeTotal) || 0,
         feeLate: Number(feeLate) || 0,
         firstPaymentDue: firstDue || undefined,
@@ -165,6 +178,19 @@ const SeasonSettingsDialog = ({
                 ? `The late fee started on ${lateFrom}. Move that date forward to go back to $${Number(feeTotal).toLocaleString("en-CA")}.`
                 : `The standard fee applies until ${lateFrom || "the payment deadline"}.`}
             </p>
+          </div>
+
+          <div>
+            <p className={section}>Season</p>
+            <label className={label} htmlFor="s-name">
+              Name
+            </label>
+            <input
+              id="s-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={field}
+            />
           </div>
 
           <div>

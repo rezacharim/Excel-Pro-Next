@@ -103,7 +103,7 @@ const Indoor = () => {
   return (
     <section className="bg-gray-50">
       <div className="bg-[#020022] text-white">
-        <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 sm:py-20">
+        <div className="mx-auto max-w-5xl px-4 pt-44 pb-14 sm:px-6 sm:pt-52 sm:pb-20">
           <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-[#E43125]">
             Indoor Season
           </p>
@@ -113,8 +113,14 @@ const Indoor = () => {
           <p className="mt-4 max-w-2xl text-lg text-gray-300">
             Reserve your child&apos;s spot for the indoor season
             {season?.startsOn ? `, starting ${longDate(season.startsOn)}` : ""}.
-            Spaces are limited in each age group, and a spot is confirmed once
-            the form and payment are complete.
+            {season?.depositAmount
+              ? ` A ${money(season.depositAmount)} deposit secures the spot.`
+              : ""}{" "}
+            Spaces are limited in each age group
+            {season?.firstPaymentDue
+              ? `, and reservations close ${longDate(season.firstPaymentDue)}`
+              : ""}
+            .
           </p>
 
           {season && (
@@ -224,9 +230,12 @@ const Indoor = () => {
               Reserve a spot
             </h2>
             <p className="mx-auto mt-2 max-w-xl text-sm text-gray-600">
-              Takes about three minutes. You will get a confirmation email with
-              the payment instructions, and a family account you can use from
-              then on.
+              Takes about three minutes.
+              {season.depositAmount
+                ? ` A ${money(season.depositAmount)} deposit reserves the spot — any balance is due before the season starts.`
+                : ""}{" "}
+              You will get a confirmation email with the payment instructions,
+              and a family account you can use from then on.
             </p>
             <button
               onClick={() => setStarted(true)}
@@ -250,6 +259,17 @@ const Indoor = () => {
         {season?.paymentInstructions && (
           <div className="mt-12 rounded-xl border-l-4 border-[#E43125] bg-red-50 p-6">
             <h3 className="font-bold text-[#020022]">How to pay</h3>
+            {season.depositAmount ? (
+              <p className="mt-2 text-sm text-gray-700">
+                A <strong>{money(season.depositAmount)} deposit</strong>{" "}
+                reserves your child&apos;s spot. If your total is higher, the
+                remaining balance is due
+                {season.firstPaymentDue
+                  ? ` by ${longDate(season.firstPaymentDue)}`
+                  : " before the season starts"}
+                .
+              </p>
+            ) : null}
             <p className="mt-2 text-sm text-gray-700">
               {season.paymentInstructions}
             </p>

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "../../atoms/Button/Button";
 import Menu from "../../molecules/Menu/Menu";
 import TopBar from "@/components/molecules/TopBar/TobBar";
+import IndoorBanner from "@/components/molecules/IndoorBanner/IndoorBanner";
 
 // Animation variants
 import { menuVariants } from "./motions/menu.variant";
@@ -38,6 +39,7 @@ const Header = () => {
 
   return (
     <header className="fixed w-full z-50">
+      <IndoorBanner />
       <TopBar />
       <div className="w-full px-4 lg:px-14 md:px-8 py-3 shadow-md bg-white">
         <div className="container mx-auto">

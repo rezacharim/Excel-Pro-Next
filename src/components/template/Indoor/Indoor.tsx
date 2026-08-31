@@ -12,6 +12,24 @@ import {
 
 const SLUG = "indoor";
 
+/** Where the indoor season runs. */
+const VENUE = {
+  name: "Richmond Hill Green Dome",
+  mapsUrl: "https://maps.app.goo.gl/12Z1J3q9KCTTRUMu6",
+};
+
+/**
+ * Weekly training times, keyed by the age-group names the season API uses.
+ * A group missing from this map simply shows no times, so a future season
+ * with different groups degrades gracefully.
+ */
+const SCHEDULE: Record<string, string[]> = {
+  "U5-U8": ["Sun 12–1 pm", "Wed 5–6 pm"],
+  "U9-U12": ["Sun 1–2 pm", "Tue 5–6 pm"],
+  "U13-U14": ["Mon 5–6 pm", "Fri 5–6 pm"],
+  "U15-U18": ["Mon 5–6 pm", "Fri 5–6 pm"],
+};
+
 const money = (n: number) => `$${Number(n || 0).toFixed(0)}`;
 
 const longDate = (iso: string | null) => {
@@ -199,9 +217,21 @@ const Indoor = () => {
 
         {season && season.ageGroups.some((g) => g.show) && (
           <div className="mb-12">
-            <h2 className="mb-4 text-xl font-bold text-[#020022]">
-              Age groups
+            <h2 className="mb-1 text-xl font-bold text-[#020022]">
+              Age groups &amp; training times
             </h2>
+            <p className="mb-4 text-sm text-gray-600">
+              All sessions run weekly at{" "}
+              <a
+                href={VENUE.mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-[#E43125] underline"
+              >
+                {VENUE.name}
+              </a>
+              .
+            </p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {season.ageGroups.map((g) => (
                 <div
@@ -218,6 +248,11 @@ const Indoor = () => {
                       {g.label}
                     </p>
                   )}
+                  {SCHEDULE[g.ageGroup]?.map((slot) => (
+                    <p key={slot} className="mt-1 text-xs text-gray-600">
+                      {slot}
+                    </p>
+                  ))}
                 </div>
               ))}
             </div>

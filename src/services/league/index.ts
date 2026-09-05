@@ -170,6 +170,12 @@ export interface PortalRegisterPayload {
   city?: string;
   postalCode?: string;
   medicalNotes?: string;
+  /** Which wording of the agreement was accepted, e.g. "league-1.0". */
+  agreementVersion?: string;
+  /** The parent's typed name — this is the signature. */
+  parentSignature?: string;
+  /** Rowan's Law confirmation. Valid 12 months. */
+  acceptedConcussion?: boolean;
 }
 
 export interface BookTrialPayload {

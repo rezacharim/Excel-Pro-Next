@@ -12,6 +12,11 @@ import {
   type PortalLeagueOverview,
   type PortalLeaguePlayer,
 } from "@/services/league";
+import AgreementConsent, {
+  EMPTY_AGREEMENT,
+  isAgreementComplete,
+  type AgreementValue,
+} from "@/components/organisms/AgreementConsent/AgreementConsent";
 import { portalLogin } from "@/services/portal";
 import { sendEmailOtp } from "@/services/sendOtpCode";
 
@@ -542,7 +547,8 @@ const PlayerRow = ({
   const reg = player.registration;
   const [editing, setEditing] = useState(false);
   const [ageGroup, setAgeGroup] = useState("");
-  const [consent, setConsent] = useState(false);
+  const [agreement, setAgreement] = useState<AgreementValue>(EMPTY_AGREEMENT);
+  const [triedSubmit, setTriedSubmit] = useState(false);
   const [extra, setExtra] = useState({
     dateOfBirth: "",
     address1: "",
@@ -562,7 +568,11 @@ const PlayerRow = ({
       await portalRegisterForLeague(token, {
         userId: player.userId,
         ageGroup,
-        consentTerms: consent,
+        consentTerms: agreement.consentTerms,
+        consentPhoto: agreement.consentPhoto ?? false,
+        agreementVersion: agreement.agreementVersion,
+        parentSignature: agreement.parentSignature.trim(),
+        acceptedConcussion: agreement.acceptedConcussion,
         ...(needs.includes("dateOfBirth") && { dateOfBirth: extra.dateOfBirth }),
         ...(needs.includes("address") && { address1: extra.address1 }),
         ...(needs.includes("city") && { city: extra.city }),
@@ -759,18 +769,16 @@ const PlayerRow = ({
             />
           </Field>
 
-          <label className="flex items-start gap-3 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              className="mt-1 h-4 w-4 accent-[#E43125]"
-              checked={consent}
-              onChange={(e) => setConsent(e.target.checked)}
-            />
-            <span>
-              I accept the league terms and understand that the roster spot is
-              confirmed only once the first payment is received.
-            </span>
-          </label>
+          <AgreementConsent
+            value={agreement}
+            onChange={setAgreement}
+            showErrors={triedSubmit}
+          />
+
+          <p className="text-sm text-gray-700">
+            Your roster spot is confirmed only once the first payment is
+            received.
+          </p>
 
           {error && (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -779,8 +787,11 @@ const PlayerRow = ({
           )}
 
           <button
-            onClick={submit}
-            disabled={busy || !ageGroup || !consent}
+            onClick={() => {
+              setTriedSubmit(true);
+              if (isAgreementComplete(agreement)) void submit();
+            }}
+            disabled={busy || !ageGroup || !isAgreementComplete(agreement)}
             className="flex items-center justify-center gap-2 rounded-lg bg-[#E43125] px-6 py-3 font-semibold text-white transition hover:bg-[#c4291f] disabled:opacity-50"
           >
             {busy && <Spinner />}

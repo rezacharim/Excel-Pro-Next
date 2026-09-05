@@ -11,8 +11,8 @@ import {
 
 // Brand colours. If these don't match the rest of the site, change them here
 // only — nothing else in this file hardcodes a colour.
-const NAVY = "#0e2a47";
-const RED = "#d81f26";
+const NAVY = "#020022";
+const RED = "#E43125";
 
 export type AgreementValue = {
   agreementVersion: string;
@@ -91,7 +91,7 @@ export default function AgreementConsent({
         {AGREEMENT_TITLE}
       </h2>
       <p className="mt-1 text-sm text-slate-600">
-        Please read this in full. You'll confirm below before you can complete
+        Please read this in full. You&apos;ll confirm below before you can complete
         registration.
       </p>
 
@@ -166,7 +166,7 @@ export default function AgreementConsent({
       {/* What you are agreeing to — read, not clicked */}
       <div
         className="mt-6 rounded-lg border p-4"
-        style={{ borderColor: NAVY, background: "#f6f8fb" }}
+        style={{ borderColor: NAVY, background: "#f7f7fb" }}
       >
         <h3 className="text-sm font-semibold" style={{ color: NAVY }}>
           In short, you are agreeing that

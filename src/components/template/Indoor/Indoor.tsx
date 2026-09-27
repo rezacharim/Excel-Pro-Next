@@ -117,6 +117,11 @@ const Indoor = () => {
   }, []);
 
   const daysLeft = daysUntil(season?.firstPaymentDue ?? null);
+  // Past the reservation date but the academy is still taking sign-ups.
+  // The page must not keep telling parents it closed on a date already gone.
+  const pastDeadline =
+    !!season?.registrationOpen && typeof daysLeft === "number" && daysLeft < 0;
+  const closed = !!season && !season.registrationOpen;
 
   return (
     <section className="bg-gray-50">
@@ -135,9 +140,13 @@ const Indoor = () => {
               ? ` A ${money(season.depositAmount)} deposit secures the spot.`
               : ""}{" "}
             Spaces are limited in each age group
-            {season?.firstPaymentDue
-              ? `, and reservations close ${longDate(season.firstPaymentDue)}`
-              : ""}
+            {closed
+              ? ", and reservations are now closed"
+              : pastDeadline
+                ? ", and late reservations are still being accepted while spaces last"
+                : season?.firstPaymentDue
+                  ? `, and reservations close ${longDate(season.firstPaymentDue)}`
+                  : ""}
             .
           </p>
 
@@ -155,15 +164,29 @@ const Indoor = () => {
                 total={season.newPlayerFee}
                 lines={season.newPlayerLines}
               />
-              <div className="rounded-xl bg-[#E43125] p-5">
-                <p className="text-xs uppercase tracking-wide text-white/80">
-                  Deadline
-                </p>
-                <p className="mt-1 text-2xl font-bold">
-                  {longDate(season.firstPaymentDue) || "—"}
-                </p>
-                <p className="text-sm text-white/80">form and payment</p>
-              </div>
+              {pastDeadline ? (
+                <div className="rounded-xl bg-[#E43125] p-5">
+                  <p className="text-xs uppercase tracking-wide text-white/80">
+                    Registration
+                  </p>
+                  <p className="mt-1 text-2xl font-bold">Still open</p>
+                  <p className="text-sm text-white/80">
+                    {season.startsOn
+                      ? `season starts ${longDate(season.startsOn)}`
+                      : "while spaces last"}
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-xl bg-[#E43125] p-5">
+                  <p className="text-xs uppercase tracking-wide text-white/80">
+                    Deadline
+                  </p>
+                  <p className="mt-1 text-2xl font-bold">
+                    {closed ? "Closed" : longDate(season.firstPaymentDue) || "—"}
+                  </p>
+                  <p className="text-sm text-white/80">form and payment</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -259,7 +282,22 @@ const Indoor = () => {
           </div>
         )}
 
-        {season && !started && (
+        {closed && (
+          <div className="rounded-2xl bg-white p-7 text-center shadow-sm ring-1 ring-gray-200">
+            <h2 className="text-xl font-bold text-[#020022]">
+              Registration is closed
+            </h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm text-gray-600">
+              Call{" "}
+              <a className="text-[#E43125] underline" href="tel:+16477037821">
+                +1 647-703-7821
+              </a>{" "}
+              and we will tell you whether a spot is still available.
+            </p>
+          </div>
+        )}
+
+        {season && !closed && !started && (
           <div className="rounded-2xl bg-white p-7 text-center shadow-sm ring-1 ring-gray-200">
             <h2 className="text-xl font-bold text-[#020022]">
               Reserve a spot
@@ -287,7 +325,7 @@ const Indoor = () => {
           </div>
         )}
 
-        {season && started && (
+        {season && !closed && started && (
           <IndoorForm season={season} onBack={() => setStarted(false)} />
         )}
 
@@ -299,7 +337,7 @@ const Indoor = () => {
                 A <strong>{money(season.depositAmount)} deposit</strong>{" "}
                 reserves your child&apos;s spot. If your total is higher, the
                 remaining balance is due
-                {season.firstPaymentDue
+                {season.firstPaymentDue && !pastDeadline
                   ? ` by ${longDate(season.firstPaymentDue)}`
                   : " before the season starts"}
                 .
@@ -381,7 +419,16 @@ const IndoorForm = ({
         waitlisted: reg.status === "waitlist",
       });
     } catch (e) {
-      setError((e as Error).message);
+      const message = (e as Error).message || "";
+      // Raw validator text ("ageGroup must be one of…") means nothing to a
+      // parent. Keep the server's sentence when it is written for people.
+      setError(
+        /\b(ageGroup|firstName|lastName|dateOfBirth|address1|postalCode|consentTerms)\b/.test(
+          message
+        ) || /must be|should not/.test(message)
+          ? `We could not submit the form: ${message}. Please check the details, or call +1 647-703-7821 and we will reserve the spot for you.`
+          : message
+      );
     } finally {
       setBusy(false);
     }

@@ -72,10 +72,18 @@ const suggestAgeGroup = (
   const birthYear = Number(String(dateOfBirth).slice(0, 4));
   const seasonYear = Number((seasonName.match(/\b(20\d{2})\b/) || [])[1]);
   if (!birthYear || !seasonYear) return "";
-  const candidate = `U${seasonYear - birthYear}`;
+  const age = seasonYear - birthYear;
+  const candidate = `U${age}`;
   // Only offered when the season actually runs that group; a suggestion the
   // admin has to undo is worse than none.
-  return available.includes(candidate) ? candidate : "";
+  if (available.includes(candidate)) return candidate;
+  // Range groups (indoor: "U5-U8", "U9-U12"…).
+  return (
+    available.find((g) => {
+      const [lo, hi] = (g.match(/\d+/g) || []).map(Number);
+      return hi !== undefined && age >= lo && age <= hi;
+    }) || ""
+  );
 };
 
 const ageFrom = (dateOfBirth: string | null): string => {

@@ -34,7 +34,16 @@ import SeasonSettingsDialog, {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-const AGE_GROUPS = ["U9", "U10", "U11", "U12", "U13", "U14", "U15", "U16"];
+/** Used only until the season arrives; after that the season's own list wins. */
+const FALLBACK_AGE_GROUPS = ["U9", "U10", "U11", "U12", "U13", "U14", "U15", "U16"];
+
+interface SeasonOption {
+  id: number;
+  name: string;
+  slug: string | null;
+  kind: string | null;
+  isActive: boolean;
+}
 
 interface Installment {
   number: number;
@@ -130,7 +139,12 @@ const League = () => {
   const [editTarget, setEditTarget] = useState<EditRegistrationTarget | null>(
     null
   );
-  const [season, setSeason] = useState<LeagueSeasonSettings | null>(null);
+  const [season, setSeason] = useState<
+    (LeagueSeasonSettings & { ageGroups?: string[]; kind?: string | null }) | null
+  >(null);
+  // null = the active league season (what the screen always showed).
+  const [seasonId, setSeasonId] = useState<number | null>(null);
+  const [seasons, setSeasons] = useState<SeasonOption[]>([]);
   const [isEditingSeason, setIsEditingSeason] = useState(false);
 
   const showToast = useCallback((kind: "success" | "error", message: string) => {
@@ -145,17 +159,34 @@ const League = () => {
 
   const auth = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
+  // League and Indoor are separate seasons with separate registrations. The
+  // switcher is what makes indoor sign-ups visible here at all.
+  useEffect(() => {
+    fetch(`${API_URL}/league/admin/seasons`, { headers: auth })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: SeasonOption[]) => setSeasons(Array.isArray(list) ? list : []))
+      .catch(() => setSeasons([]));
+  }, [auth]);
+
+  const ageGroups = season?.ageGroups?.length
+    ? season.ageGroups
+    : FALLBACK_AGE_GROUPS;
+  const seasonQuery = seasonId ? `seasonId=${seasonId}` : "";
+
   const load = useCallback(async () => {
     try {
       setLoadError(null);
       const params = new URLSearchParams();
+      if (seasonId) params.set("seasonId", String(seasonId));
       if (ageGroup) params.set("ageGroup", ageGroup);
       if (status) params.set("status", status);
       if (search.trim()) params.set("search", search.trim());
 
       const [regRes, outRes] = await Promise.all([
         fetch(`${API_URL}/league/admin/registrations?${params}`, { headers: auth }),
-        fetch(`${API_URL}/league/admin/outstanding`, { headers: auth }),
+        fetch(`${API_URL}/league/admin/outstanding?${seasonQuery}`, {
+          headers: auth,
+        }),
       ]);
       if (!regRes.ok) throw new Error("Could not load registrations");
 
@@ -172,7 +203,7 @@ const League = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [auth, ageGroup, status, search]);
+  }, [auth, ageGroup, status, search, seasonId, seasonQuery]);
 
   useEffect(() => {
     // Debounced so typing in the search box does not fire a request per key.
@@ -291,7 +322,7 @@ const League = () => {
     const res = await fetch(`${API_URL}/league/admin/registrations`, {
       method: "POST",
       headers: { ...auth, "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, ...(season ? { seasonId: season.id } : {}) }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -335,6 +366,7 @@ const League = () => {
     setIsExporting(true);
     try {
       const params = new URLSearchParams();
+      if (seasonId) params.set("seasonId", String(seasonId));
       if (ageGroup) params.set("ageGroup", ageGroup);
 
       const check = await fetch(`${API_URL}/league/admin/roster/check?${params}`, {
@@ -399,7 +431,9 @@ const League = () => {
     <div className="p-4 sm:p-8 max-w-[1400px] mx-auto">
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">League Registrations</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {season?.kind === "indoor" ? "Indoor Registrations" : "League Registrations"}
+          </h1>
           <p className="text-gray-600 text-sm mt-1">
             {seasonName || "No active season"} — record payments and export the
             roster for PISL / YRSL
@@ -442,6 +476,31 @@ const League = () => {
           </button>
         </div>
       </div>
+
+      {/* ---- which season ---- */}
+      {seasons.length > 1 && (
+        <div className="flex flex-wrap gap-2 mb-5">
+          {seasons.map((s) => {
+            const current = season ? season.id === s.id : s.isActive;
+            return (
+              <button
+                key={s.id}
+                onClick={() => {
+                  setAgeGroup("");
+                  setSeasonId(s.id);
+                }}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold ${
+                  current
+                    ? "bg-[#020022] text-white"
+                    : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                {s.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* ---- money at a glance ---- */}
       {totals && (
@@ -505,7 +564,7 @@ const League = () => {
             className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
           >
             <option value="">All age groups</option>
-            {AGE_GROUPS.map((g) => (
+            {ageGroups.map((g) => (
               <option key={g} value={g}>
                 {g}
               </option>
@@ -774,7 +833,7 @@ const League = () => {
 
       <AddRegistrationDialog
         open={isAdding}
-        ageGroups={AGE_GROUPS}
+        ageGroups={ageGroups}
         seasonName={seasonName}
         members={members}
         membersLoading={membersLoading}
@@ -787,7 +846,7 @@ const League = () => {
 
       <EditRegistrationDialog
         target={editTarget}
-        ageGroups={AGE_GROUPS}
+        ageGroups={ageGroups}
         onCancel={() => setEditTarget(null)}
         onSubmit={editRegistration}
       />

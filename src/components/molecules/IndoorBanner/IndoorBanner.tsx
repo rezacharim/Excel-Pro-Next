@@ -37,13 +37,20 @@ const IndoorBanner = () => {
     };
   }, []);
 
-  if (!season) return null;
+  // Shown for as long as the academy is taking indoor registrations. It used
+  // to disappear on the reservation deadline even though registration stayed
+  // open — the one strip pointing parents to /indoor vanished in the busiest
+  // week. Now it retires when registration is closed or the season has begun.
+  if (!season || !season.registrationOpen) return null;
   if (
-    season.firstPaymentDue &&
-    Date.now() > new Date(`${season.firstPaymentDue}T23:59:59`).getTime()
+    season.startsOn &&
+    Date.now() > new Date(`${season.startsOn}T23:59:59`).getTime()
   ) {
     return null;
   }
+  const pastDeadline =
+    !!season.firstPaymentDue &&
+    Date.now() > new Date(`${season.firstPaymentDue}T23:59:59`).getTime();
 
   const starts = shortDate(season.startsOn);
   const due = shortDate(season.firstPaymentDue);
@@ -60,11 +67,11 @@ const IndoorBanner = () => {
         {season.name ?? "Indoor Season"}
         {starts ? ` starts ${starts}` : ""} —{" "}
         {deposit ? `a ${deposit} deposit reserves your child's spot` : "reserve your child's spot"}
-        {due ? ` · deadline ${due}` : ""} →
+        {pastDeadline ? " · registration still open" : due ? ` · deadline ${due}` : ""} →
       </span>
       <span className="sm:hidden">
         Indoor Season{deposit ? ` — reserve with ${deposit}` : ""}
-        {due ? ` by ${due}` : ""} →
+        {pastDeadline ? " — still open" : due ? ` by ${due}` : ""} →
       </span>
     </Link>
   );

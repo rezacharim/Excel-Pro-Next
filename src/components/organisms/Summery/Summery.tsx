@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
+import { AGE_RANGE } from "@/data/academy";
 import Link from "next/link";
 import { motion, useInView } from "framer-motion";
 import PrimaryIcon from "@/components/atoms/Icons/primaryIcons/PrimaryIcon";
@@ -164,7 +165,7 @@ const Summary = () => {
             itemProp="description"
           >
             At Excel Pro Soccer Academy we provide elite soccer training for
-            boys and girls aged 5 to 18. Based in Markham, Ontario and serving
+            boys and girls aged {AGE_RANGE.text}. Based in Markham, Ontario and serving
             Richmond Hill, North York, Aurora, Toronto and the entire GTA, our
             academy focuses on developing
             technical skills, game intelligence, and a lifelong passion for

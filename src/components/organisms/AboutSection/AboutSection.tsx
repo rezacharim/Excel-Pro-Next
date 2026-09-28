@@ -1,5 +1,6 @@
 "use client";
 import { NextPage } from "next";
+import { AGE_RANGE } from "@/data/academy";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -253,7 +254,7 @@ const AboutSection: NextPage<AboutSectionProps> = ({ teamImages }) => {
                 next generation of soccer players through structured training,
                 competitive opportunities, and a positive team culture. Based in
                 Toronto and active throughout the Greater Toronto Area (GTA),
-                our academy welcomes players aged 5 to 18, from beginners to
+                our academy welcomes players aged {AGE_RANGE.text}, from beginners to
                 high-level athletes.
               </p>
               <p className="break-words max-w-full">

@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { AGE_RANGE, CURRENT_SEASON, VENUE } from "@/data/academy";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import type { ApiCoach } from "@/services/coaches";
@@ -120,7 +121,7 @@ const Coaches = ({ coaches: fromApi }: { coaches: ApiCoach[] }) => {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.9, duration: 0.6 }}
             >
-              Our team of 12 professional coaches develops players ages 6 to 18
+              Our team of 12 professional coaches develops players ages {AGE_RANGE.text}
               with passion, experience and a proven training philosophy.
             </motion.p>
           </motion.div>
@@ -194,10 +195,11 @@ const Coaches = ({ coaches: fromApi }: { coaches: ApiCoach[] }) => {
           transition={{ duration: 0.6 }}
         >
           <h2 className="text-2xl font-bold text-gray-900">
-            Train with us at Richmond Hill Green Dome
+            Train with us at {VENUE.name}
           </h2>
           <p className="mt-2 text-gray-600">
-            Practices run Monday and Wednesday evenings in Markham, Ontario.
+            {CURRENT_SEASON.name} — two sessions a week for every age group,
+            {" "}{VENUE.address}.
           </p>
           <Link
             href="/program"

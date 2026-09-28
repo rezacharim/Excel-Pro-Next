@@ -1,6 +1,6 @@
 import Programs from '@/components/organisms/Programs/Programs';
 import { PRICING } from '@/data/programs';
-import { CURRENT_SEASON, VENUE } from '@/data/academy';
+import { CURRENT_SEASON, REGISTER_PATH, VENUE } from '@/data/academy';
 import Link from 'next/link';
 import React from 'react'
 
@@ -36,7 +36,7 @@ const Program = () => {
             ({VENUE.address})
           </p>
           <Link
-            href="/indoor"
+            href={REGISTER_PATH}
             className="mt-4 inline-block rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white"
           >
             Reserve a spot

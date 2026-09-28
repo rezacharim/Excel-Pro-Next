@@ -5,14 +5,14 @@ import { getCoaches } from "@/services/coaches";
 export const metadata: Metadata = {
   title: "Our Coaches | Excel Pro Soccer Academy Markham",
   description:
-    "Meet the coaching staff at Excel Pro Soccer Academy in Markham, Ontario — professional players and licensed coaches developing boys and girls aged 5 to 18.",
+    "Meet the coaching staff at Excel Pro Soccer Academy in Markham, Ontario — professional players and licensed coaches developing boys and girls aged 6 to 18.",
   alternates: {
     canonical: "https://www.excelproso.com/coaches",
   },
   openGraph: {
     title: "Our Coaches | Excel Pro Soccer Academy",
     description:
-      "Professional players and licensed coaches developing boys and girls aged 5 to 18 in Markham, Ontario.",
+      "Professional players and licensed coaches developing boys and girls aged 6 to 18 in Markham, Ontario.",
     type: "website",
     url: "https://www.excelproso.com/coaches",
     siteName: "Excel Pro Soccer Academy",

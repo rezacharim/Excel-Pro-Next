@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useDivisionStore } from "@/stores/divisionStore";
 import { motion } from "framer-motion";
 import { Button } from "../Button/Button";
+import { groupByKey, registerHref } from "@/data/academy";
 
 interface FixedRegisterButtonProps {
   _division: string;
@@ -27,14 +28,14 @@ const FixedRegisterButton: NextPage<FixedRegisterButtonProps> = ({
       .replace(/\s+/g, '');
 
 
-      console.log("Normalized Division:", normalizeDivision(decodedSlug));
-      
-
-      const handleRegister = () => {
-        const cleanedDivision = normalizeDivision(decodedSlug);
-        setDivision(cleanedDivision);
-        router.push(`/register`);
-      };
+  // Goes wherever this season registers (see ACTIVE_SEASON in
+  // src/data/academy.ts): /indoor with the group pre-selected in the indoor
+  // season, the membership form at /register in the outdoor season.
+  const handleRegister = () => {
+    const cleanedDivision = normalizeDivision(decodedSlug);
+    setDivision(cleanedDivision);
+    router.push(registerHref(groupByKey(cleanedDivision)));
+  };
 
   return (
     <motion.div

@@ -4,6 +4,12 @@ import { notFound, redirect } from "next/navigation";
 import { programs } from "@/components/organisms/SummeryPrograms/data";
 import type { ProgramEntry } from "@/components/organisms/SummeryPrograms/data";
 import ProgramDetails from "@/components/template/Program/ProgramDetails/ProgramDetails";
+import {
+  AGE_RANGE,
+  VENUE,
+  groupByKey,
+  scheduleSentence,
+} from "@/data/academy";
 
 const SITE_URL = "https://www.excelproso.com";
 
@@ -54,16 +60,19 @@ const resolveProgram = (rawSlug: string): ProgramEntry | null => {
   return program ?? null;
 };
 
-/** Unique, locally-targeted meta descriptions per division (140-160 chars). */
-const PROGRAM_DESCRIPTIONS: Record<string, string> = {
-  "u6-u9":
-    "Mini Kickers (ages 6-9): fun, play-based soccer training. Sundays 12-1 pm and Wednesdays 5-6 pm at Richmond Hill Green Dome, uniform included.",
-  "u10-u12":
-    "Foundation Phase (ages 10-12): ball mastery, passing and positional play. Sundays 1-2 pm and Tuesdays 5-6 pm at Richmond Hill Green Dome.",
-  "u13-u14":
-    "Competitive Phase (ages 13-14): position-specific youth soccer training with matches across the GTA. Mon & Fri 5-6 pm at Richmond Hill Green Dome.",
-  "u15-u18":
-    "High Performance (ages 15-18): advanced tactics, video analysis and pathways to university soccer. Mon & Fri 5-6 pm at Richmond Hill Green Dome.",
+/** Meta description per division, built from src/data/academy.ts. */
+const PROGRAM_BLURBS: Record<string, string> = {
+  "u6-u9": "fun, play-based soccer training, uniform included",
+  "u10-u12": "ball mastery, passing and positional play",
+  "u13-u14": "position-specific training with matches across the GTA",
+  "u15-u18": "advanced tactics, video analysis and pathways to university soccer",
+};
+const describeProgram = (program: ProgramEntry): string | null => {
+  const g = groupByKey(program.slug);
+  if (!g) return null;
+  return `${program.name} (ages ${g.minAge}-${g.maxAge}): ${
+    PROGRAM_BLURBS[program.slug] ?? "youth soccer training"
+  }. ${scheduleSentence(g)} at ${VENUE.name}.`;
 };
 
 export function generateStaticParams() {
@@ -82,10 +91,10 @@ export function generateMetadata({ params }: ProgramPageProps): Metadata {
 
   // e.g. "U10–U12 Soccer Program | Excel Pro Academy"
   const ageLabel = program.ageGroup.replace(/\s*–\s*/g, "–");
-  const title = `${ageLabel} Soccer Program | Richmond Hill | Excel Pro Academy`;
+  const title = `${ageLabel} Soccer Program | ${VENUE.city} | Excel Pro Academy`;
   const description =
-    PROGRAM_DESCRIPTIONS[program.slug] ??
-    `${program.title} — youth soccer training for ages 6-18 at Excel Pro Soccer Academy, Richmond Hill Green Dome.`;
+    describeProgram(program) ??
+    `${program.title} — youth soccer training for ages ${AGE_RANGE.short} at Excel Pro Soccer Academy, ${VENUE.name}.`;
   const canonicalUrl = `${SITE_URL}/program/${program.slug}`;
 
   return {

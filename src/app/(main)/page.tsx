@@ -175,21 +175,6 @@ export default async function Home() {
         latitude: String(VENUE.lat),
         longitude: String(VENUE.lng),
       },
-      // Training sessions (indoor season), from src/data/academy.ts.
-      openingHoursSpecification: [
-        {
-          "@type": "OpeningHoursSpecification",
-          dayOfWeek: ["Sunday"],
-          opens: "12:00",
-          closes: "14:00",
-        },
-        {
-          "@type": "OpeningHoursSpecification",
-          dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Friday"],
-          opens: "17:00",
-          closes: "18:00",
-        },
-      ],
     },
   ];
 
@@ -218,7 +203,7 @@ export default async function Home() {
             Markham, Ontario and the largest Iranian-based soccer academy in the
             Toronto area. Founded by former Iran National Team and Persepolis FC
             player Reza Abedian, we offer professional soccer training for youth
-            ages 6 to 18, training at Richmond Hill Green Dome. Our programs focus on developing technical skills,
+            ages 6 to 18, training at {VENUE.name}. Our programs focus on developing technical skills,
             teamwork, strategy, and athletic excellence both on and off the
             field.
           </p>

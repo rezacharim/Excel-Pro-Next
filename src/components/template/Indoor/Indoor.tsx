@@ -9,7 +9,11 @@ import {
   type LeagueSeason,
   type PublicRegisterPayload,
 } from "@/services/league";
-import { VENUE, groupByKey, shortScheduleLines } from "@/data/academy";
+import { SEASONS, groupByKey } from "@/data/academy";
+
+// This page is always the indoor season, whichever season the rest of the
+// site is currently showing.
+const VENUE = SEASONS.indoor.venue;
 
 const SLUG = "indoor";
 
@@ -20,7 +24,9 @@ const SLUG = "indoor";
  */
 const scheduleFor = (ageGroup: string): string[] => {
   const g = groupByKey(ageGroup);
-  return g ? shortScheduleLines(g) : [];
+  return g
+    ? (SEASONS.indoor.sessions[g.key] ?? []).map((x) => `${x.short} ${x.time}`)
+    : [];
 };
 
 const money = (n: number) => `$${Number(n || 0).toFixed(0)}`;
@@ -102,6 +108,13 @@ const Indoor = () => {
   const [season, setSeason] = useState<LeagueSeason | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
+
+  // Arriving from a program page's register button: open the form directly.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("group")) {
+      setStarted(true);
+    }
+  }, []);
 
   useEffect(() => {
     getLeagueSeason(SLUG)
@@ -361,9 +374,21 @@ const IndoorForm = ({
   season: LeagueSeason;
   onBack: () => void;
 }) => {
+  // "Register for this program" on a program page links here with
+  // ?group=U6-U9 — pre-select it when the season offers that group.
+  const initialGroup = (() => {
+    if (typeof window === "undefined") return "";
+    const wanted = groupByKey(
+      new URLSearchParams(window.location.search).get("group") ?? ""
+    );
+    return (
+      season.ageGroups.find((g) => groupByKey(g.ageGroup) === wanted && wanted)
+        ?.ageGroup ?? ""
+    );
+  })();
   const [form, setForm] = useState<PublicRegisterPayload>({
     slug: SLUG,
-    ageGroup: "",
+    ageGroup: initialGroup,
     firstName: "",
     lastName: "",
     dateOfBirth: "",

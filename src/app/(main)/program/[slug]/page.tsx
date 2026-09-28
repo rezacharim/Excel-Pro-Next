@@ -56,14 +56,14 @@ const resolveProgram = (rawSlug: string): ProgramEntry | null => {
 
 /** Unique, locally-targeted meta descriptions per division (140-160 chars). */
 const PROGRAM_DESCRIPTIONS: Record<string, string> = {
-  "u5-u8":
-    "Mini Kickers (ages 5-8): fun, play-based soccer training for kids in Markham & the GTA. Twice-weekly sessions at Ashton Meadows Park, uniform included.",
-  "u9-u12":
-    "Foundation Phase (ages 9-12): technical soccer training for kids in Markham, Ontario — ball mastery, positional play and yearly league selection chances.",
+  "u6-u9":
+    "Mini Kickers (ages 6-9): fun, play-based soccer training. Sundays 12-1 pm and Wednesdays 5-6 pm at Richmond Hill Green Dome, uniform included.",
+  "u10-u12":
+    "Foundation Phase (ages 10-12): ball mastery, passing and positional play. Sundays 1-2 pm and Tuesdays 5-6 pm at Richmond Hill Green Dome.",
   "u13-u14":
-    "Competitive Phase (ages 13-14): position-specific youth soccer training in Markham with matches across Toronto & the GTA. Mon & Wed at Ashton Meadows Park.",
+    "Competitive Phase (ages 13-14): position-specific youth soccer training with matches across the GTA. Mon & Fri 5-6 pm at Richmond Hill Green Dome.",
   "u15-u18":
-    "High Performance (ages 15-18): advanced soccer training in Markham & the GTA — showcases, video analysis and pathways to university and semi-pro soccer.",
+    "High Performance (ages 15-18): advanced tactics, video analysis and pathways to university soccer. Mon & Fri 5-6 pm at Richmond Hill Green Dome.",
 };
 
 export function generateStaticParams() {
@@ -75,17 +75,17 @@ export function generateMetadata({ params }: ProgramPageProps): Metadata {
 
   if (!program) {
     return {
-      title: "Youth Soccer Programs in Markham | Excel Pro Academy",
+      title: "Youth Soccer Programs | Excel Pro Academy",
       robots: { index: false, follow: true },
     };
   }
 
-  // e.g. "U9–U12 Soccer Program in Markham | Excel Pro Academy"
+  // e.g. "U10–U12 Soccer Program | Excel Pro Academy"
   const ageLabel = program.ageGroup.replace(/\s*–\s*/g, "–");
-  const title = `${ageLabel} Soccer Program in Markham | Excel Pro Academy`;
+  const title = `${ageLabel} Soccer Program | Richmond Hill | Excel Pro Academy`;
   const description =
     PROGRAM_DESCRIPTIONS[program.slug] ??
-    `${program.title} — youth soccer training in Markham, Ontario for ages 5-18 at Excel Pro Soccer Academy, serving families across the GTA.`;
+    `${program.title} — youth soccer training for ages 6-18 at Excel Pro Soccer Academy, Richmond Hill Green Dome.`;
   const canonicalUrl = `${SITE_URL}/program/${program.slug}`;
 
   return {
@@ -105,7 +105,7 @@ export function generateMetadata({ params }: ProgramPageProps): Metadata {
           url: program.team_image,
           width: 1200,
           height: 630,
-          alt: `Excel Pro ${ageLabel} players training in Markham`,
+          alt: `Excel Pro ${ageLabel} players training`,
         },
       ],
     },

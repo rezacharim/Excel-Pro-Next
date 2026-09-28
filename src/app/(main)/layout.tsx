@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     url: "https://www.excelproso.com",
     title: "Excel Pro Soccer Academy | Markham, Ontario",
     description:
-      "Professional soccer training in Markham. Year-round academy programs, competitive league teams and indoor season training for boys and girls U5–U19.",
+      "Professional soccer training in Markham. Year-round academy programs, competitive league teams and indoor season training for boys and girls ages 6–18.",
     images: [
       {
         url: "https://www.excelproso.com/images/og/og-default.jpg",

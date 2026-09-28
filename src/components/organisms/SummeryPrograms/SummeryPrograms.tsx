@@ -94,6 +94,7 @@ const SummeryPrograms: NextPage = () => {
             <motion.li key={index} variants={cardVariants}>
               <ProgramCard
                 ageGroup={program.ageGroup}
+              slug={program.slug}
                 backgroundClass={program.backgroundClass}
                 textColorClass={program.textColorClass}
                 schedule={program.schedule}

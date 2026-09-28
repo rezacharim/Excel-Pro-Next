@@ -17,7 +17,7 @@ const FilterModal = ({ isOpen, onClose, activeFilters, onApplyFilters }: FilterM
     sortBy: ["Newest", "Oldest", "A-Z", "Z-A"],
     gender: ["Male", "Female", "All"],
     status: ["verified", "pending", "rejected", "expired", "confirmed"],
-    activePlan: ["U5-U8", "U9-U12", "U13-U14", "U15-U18", "All"]
+    activePlan: ["U6-U9", "U10-U12", "U13-U14", "U15-U18", "All"]
   };
 
   // Selected filters in the modal (a copy of activeFilters)

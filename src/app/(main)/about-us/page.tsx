@@ -6,14 +6,14 @@ const SITE_URL = "https://www.excelproso.com";
 export const metadata: Metadata = {
   title: "About Us | Excel Pro Soccer Academy Markham",
   description:
-    "Excel Pro is a youth soccer academy in Markham, Ontario founded by former Iran National Team & Persepolis FC player Reza Abedian, serving kids 5-18 GTA-wide.",
+    "Excel Pro is a youth soccer academy in Markham, Ontario founded by former Iran National Team & Persepolis FC player Reza Abedian, serving kids 6-18 GTA-wide.",
   alternates: {
     canonical: `${SITE_URL}/about-us`,
   },
   openGraph: {
     title: "About Us | Excel Pro Soccer Academy Markham",
     description:
-      "Excel Pro is a youth soccer academy in Markham, Ontario founded by former Iran National Team & Persepolis FC player Reza Abedian, serving kids 5-18 GTA-wide.",
+      "Excel Pro is a youth soccer academy in Markham, Ontario founded by former Iran National Team & Persepolis FC player Reza Abedian, serving kids 6-18 GTA-wide.",
     type: "website",
     url: `${SITE_URL}/about-us`,
     siteName: "Excel Pro Soccer Academy",

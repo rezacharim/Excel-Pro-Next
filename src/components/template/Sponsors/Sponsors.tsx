@@ -45,7 +45,7 @@ const benefits = [
   },
   {
     title: "Real community impact",
-    text: "Your support keeps quality soccer training accessible and helps young players ages 5 to 18 grow on and off the field.",
+    text: "Your support keeps quality soccer training accessible and helps young players ages 6 to 18 grow on and off the field.",
   },
 ];
 

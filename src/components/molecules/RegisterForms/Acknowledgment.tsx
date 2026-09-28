@@ -46,7 +46,7 @@ export const planFromDateOfBirth = (dateOfBirth?: string): string | null => {
   if (isNaN(dob.getTime())) return null;
   const age = new Date().getFullYear() - dob.getFullYear();
   if (age < 4 || age > 25) return null; // clearly wrong date — let admin decide
-  if (age <= 8) return "U5_U8";
+  if (age <= 9) return "U5_U8"; // shown to parents as U6–U9
   if (age <= 12) return "U9_U12";
   if (age <= 14) return "U13_U14";
   return "U15_U18";

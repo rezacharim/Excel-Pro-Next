@@ -14,14 +14,14 @@ const montserrat = Montserrat({
 export const metadata: Metadata = {
   title: "Register — Excel Pro Soccer Academy Markham",
   description:
-    "Register your child for youth soccer programs at Excel Pro Soccer Academy in Markham, Ontario. Ages 5-18, $380 per 2 months, e-transfer payment accepted.",
+    "Register your child for youth soccer programs at Excel Pro Soccer Academy in Markham, Ontario. Ages 6-18, $380 per 2 months, e-transfer payment accepted.",
   alternates: {
     canonical: "https://www.excelproso.com/register",
   },
   openGraph: {
     title: "Register — Excel Pro Soccer Academy Markham",
     description:
-      "Register your child for youth soccer programs at Excel Pro Soccer Academy in Markham, Ontario. Ages 5-18, $380 per 2 months, e-transfer payment accepted.",
+      "Register your child for youth soccer programs at Excel Pro Soccer Academy in Markham, Ontario. Ages 6-18, $380 per 2 months, e-transfer payment accepted.",
     type: "website",
     url: "https://www.excelproso.com/register",
     siteName: "Excel Pro Soccer Academy",

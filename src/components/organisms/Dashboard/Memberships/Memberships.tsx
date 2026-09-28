@@ -82,8 +82,8 @@ type BulkModalType = "stop" | "set-plan";
 
 /** The four real programs a player can belong to. */
 export const PLAN_OPTIONS: { value: PlanValue; label: string }[] = [
-  { value: "U5_U8", label: "U5–U8" },
-  { value: "U9_U12", label: "U9–U12" },
+  { value: "U5_U8", label: "U6–U9" },
+  { value: "U9_U12", label: "U10–U12" },
   { value: "U13_U14", label: "U13–U14" },
   { value: "U15_U18", label: "U15–U18" },
 ];

@@ -17,7 +17,7 @@ export const contactFaqData: FAQEntry[] = [
     id: 1,
     question: "What age groups do you accept at Excel Pro Academy?",
     answer:
-      "We welcome players from ages 5 to 18. Our programs are tailored to suit each age group's skills and development needs.",
+      "We welcome players from ages 6 to 18, in four groups: U6–U9, U10–U12, U13–U14 and U15–U18. Our programs are tailored to suit each age group's skills and development needs.",
   },
   {
     id: 2,

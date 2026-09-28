@@ -1,4 +1,23 @@
 import { ProgramType } from "@/components/organisms/SummeryPrograms/types";
+import {
+  ACADEMY_GROUPS,
+  VENUE,
+  scheduleLines,
+  type AcademyGroup,
+} from "@/data/academy";
+
+const G = (key: string): AcademyGroup => {
+  const g = ACADEMY_GROUPS.find((x) => x.key === key);
+  if (!g) throw new Error(`Unknown age group ${key}`);
+  return g;
+};
+const U6_U9 = G("U6-U9");
+const U10_U12 = G("U10-U12");
+const U13_U14 = G("U13-U14");
+const U15_U18 = G("U15-U18");
+
+/** Every card says where training happens, under the times. */
+const withVenue = (g: AcademyGroup) => [...scheduleLines(g), `at ${VENUE.name}`];
 
 /**
  * Single source of truth for the Excel Pro Soccer Academy program catalog.
@@ -48,9 +67,9 @@ export interface ProgramEntry extends ProgramType {
 
 export const programs: ProgramEntry[] = [
   {
-    slug: "u5-u8",
+    slug: U6_U9.slug,
     name: "Mini Kickers",
-    ageRange: "Ages 5-8",
+    ageRange: "Ages 6-9",
     priceInfo: PRICING,
     features: [
       "Small-sided games and fun, play-based learning every session",
@@ -58,11 +77,11 @@ export const programs: ProgramEntry[] = [
       "Confidence building in a positive, high-energy team environment",
       "Full uniform (jersey, shorts and socks) included with registration",
     ],
-    ageGroup: "U5 – U8",
-    title: "Mini Kickers (Ages 5-8)",
+    ageGroup: U6_U9.label,
+    title: "Mini Kickers (Ages 6-9)",
     backgroundClass: "bg-green-50",
     textColorClass: "text-gray-900",
-    schedule: ["Monday at 5PM - 6:30PM", "Wednesday at 5PM - 6:30PM"],
+    schedule: withVenue(U6_U9),
     gameInfo: GAME_INFO,
     tag: {
       icon: (
@@ -91,15 +110,15 @@ export const programs: ProgramEntry[] = [
       description:
         "Young players train in a nurturing environment with coaches specialized in early childhood development and soccer fundamentals.",
       additionalDetails:
-        "The U5-U8 Introduction Program focuses on building coordination, basic soccer skills, and social development through play. Sessions are structured with short, engaging activities to maintain attention and maximize enjoyment.",
+        "The U6-U9 Introduction Program focuses on building coordination, basic soccer skills, and social development through play. Sessions are structured with short, engaging activities to maintain attention and maximize enjoyment.",
     },
     playerUniformsEquipment:
       "At Excel Pro Soccer Academy, all players will receive full uniform upon registration. Uniforms consist of a jersey, shorts, and pair of socks. This uniform is to be worn at each session. All players are to bring their own shoes and shin pads. Running shoes are acceptable for this age group. Please note that shin pads are mandatory during all games and training sessions!",
   },
   {
-    slug: "u9-u12",
+    slug: U10_U12.slug,
     name: "Foundation Phase",
-    ageRange: "Ages 9-12",
+    ageRange: "Ages 10-12",
     priceInfo: PRICING,
     features: [
       "Technical development: ball mastery, passing, first touch and finishing",
@@ -107,11 +126,11 @@ export const programs: ProgramEntry[] = [
       "Player of the Day awards to build a fun, competitive edge",
       "Yearly selection opportunities for the North York Association League",
     ],
-    ageGroup: "U9 – U12",
-    title: "Foundation Phase (Ages 9-12)",
+    ageGroup: U10_U12.label,
+    title: "Foundation Phase (Ages 10-12)",
     backgroundClass: "bg-gray-100",
     textColorClass: "text-gray-900",
-    schedule: ["Monday at 5PM - 6:30PM", "Wednesday at 5PM - 6:30PM"],
+    schedule: withVenue(U10_U12),
     gameInfo: GAME_INFO,
     tag: {
       icon: (
@@ -135,17 +154,17 @@ export const programs: ProgramEntry[] = [
     imageSrc: "/images/programs/u13-14.png",
     team_image: "/images/person/team/u9-u12.webp",
     description:
-      "As players grow, we emphasize technical skill development, tactical understanding, and physical fitness. This stage builds the foundation for more competitive play, with a focus on ball mastery, passing, and movement. Training frequency: 2–3x per week, optional weekend games",
+      "As players grow, we emphasize technical skill development, tactical understanding, and physical fitness. This stage builds the foundation for more competitive play, with a focus on ball mastery, passing, and movement. Training frequency: 2 x per week, optional weekend games",
     programOutline: {
       description:
         "All players train throughout the year under the supervision of Reza Abedian and other passionate and experienced coaches who are looking to bring the best out of these young soccer players.",
       additionalDetails:
-        "The U8-U12 Competitive Program at Excel Pro Soccer Academy is an opportunity for players to grow in technique and strive for excellence in the beautiful game. At the end of each practice, coaches pick their player of the day to create a fun competitive environment. Every year during Summer and Fall/Winter season a number of players from the program are selected to play at the North York Association League!",
+        "The U10-U12 Program at Excel Pro Soccer Academy is an opportunity for players to grow in technique and strive for excellence in the beautiful game. At the end of each practice, coaches pick their player of the day to create a fun competitive environment. Every year during Summer and Fall/Winter season a number of players from the program are selected to play at the North York Association League!",
     },
     playerUniformsEquipment: UNIFORM_STANDARD,
   },
   {
-    slug: "u13-u14",
+    slug: U13_U14.slug,
     name: "Competitive Phase",
     ageRange: "Ages 13-14",
     priceInfo: PRICING,
@@ -155,11 +174,11 @@ export const programs: ProgramEntry[] = [
       "Match-strategy and mental strength sessions",
       "High-intensity conditioning to meet the demands of competitive play",
     ],
-    ageGroup: "U13 – U14",
+    ageGroup: U13_U14.label,
     title: "Competitive Phase (Ages 13-14)",
     backgroundClass: "bg-blue-50",
     textColorClass: "text-gray-900",
-    schedule: ["Monday at 6:30PM - 8PM", "Wednesday at 6:30PM - 8PM"],
+    schedule: withVenue(U13_U14),
     gameInfo: GAME_INFO,
     tag: {
       icon: (
@@ -183,7 +202,7 @@ export const programs: ProgramEntry[] = [
     imageSrc: "/images/programs/u13-14.png",
     team_image: "/images/person/team/u13-u14.jpeg",
     description:
-      "Our competitive teams train with high intensity and are introduced to position-specific tactics, match strategies, and mental strength training. Players compete in regional leagues and tournaments across Toronto and the GTA. Training frequency: 2-3x per week + regular matches",
+      "Our competitive teams train with high intensity and are introduced to position-specific tactics, match strategies, and mental strength training. Players compete in regional leagues and tournaments across Toronto and the GTA. Training frequency: 2 x per week + regular matches",
     programOutline: {
       description:
         "All players train throughout the year under the supervision of Reza Abedian and other passionate and experienced coaches who are looking to bring the best out of these competitive soccer players.",
@@ -194,7 +213,7 @@ export const programs: ProgramEntry[] = [
       "At Excel Pro Soccer Academy, all players will receive full uniform upon registration. Uniforms consist of a jersey, shorts, and pair of socks. This uniform is to be worn at each training session. Game day uniforms are separately provided upon team selection and include the player's jersey number! All players must bring their own cleats and shin pads. Running shoes are not acceptable for competitive play. Please note that shin pads are mandatory during all games and training sessions! Players are also encouraged to bring their own water bottles and weather-appropriate gear for all training sessions and matches.",
   },
   {
-    slug: "u15-u18",
+    slug: U15_U18.slug,
     name: "High Performance",
     ageRange: "Ages 15-18",
     priceInfo: PRICING,
@@ -204,11 +223,11 @@ export const programs: ProgramEntry[] = [
       "Dedicated strength and conditioning sessions",
       "Pathways to university, college and semi-professional programs",
     ],
-    ageGroup: "U15 – U18",
+    ageGroup: U15_U18.label,
     title: "High Performance (Ages 15-18)",
     backgroundClass: "bg-black",
     textColorClass: "text-white",
-    schedule: ["Monday at 6:30PM - 8PM", "Wednesday at 6:30PM - 8PM"],
+    schedule: withVenue(U15_U18),
     gameInfo: GAME_INFO,
     tag: {
       icon: null,
@@ -218,7 +237,7 @@ export const programs: ProgramEntry[] = [
     imageSrc: "/images/programs/u15-17.png",
     team_image: "/images/person/team/u15-u18.jpeg",
     description:
-      "This program is designed for serious players aiming to play at a high level, including university, college, and semi-professional opportunities. We focus on advanced tactical systems, strength & conditioning, video analysis, and exposure to top-level competitions. Training frequency: 3x per week + league play + showcases",
+      "This program is designed for serious players aiming to play at a high level, including university, college, and semi-professional opportunities. We focus on advanced tactical systems, strength & conditioning, video analysis, and exposure to top-level competitions. Training frequency: 2 x per week + league play + showcases",
     programOutline: {
       description:
         "Elite players train intensively throughout the year under the direct supervision of Reza Abedian and our team of professional coaches with experience at the highest levels of the game.",

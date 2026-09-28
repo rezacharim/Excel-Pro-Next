@@ -29,13 +29,13 @@ const plans: Record<SubscriptionPlan, Plan> = {
     features: ["Limited Features"],
   },
   U5_U8: {
-    title: "U5-U8",
+    title: "U6-U9",
     price: "380/2 months",
     priceId: `${process.env.NEXT_PUBLIC_U5_U8}`,
     features: ["Feature 1", "Feature 2"],
   },
   U9_U12: {
-    title: "U9-U12",
+    title: "U10-U12",
     price: "380/2 months",
     priceId: `${process.env.NEXT_PUBLIC_U9_U12}`,
     features: ["All Basic features", "Feature 3", "Feature 4"],

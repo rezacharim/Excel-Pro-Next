@@ -10,6 +10,8 @@ import Link from "next/link";
  */
 interface ProgramCardProps {
   ageGroup: string;
+  /** URL slug, e.g. "u6-u9". Falls back to one derived from ageGroup. */
+  slug?: string;
   title?: string;
   backgroundClass: string;
   textColorClass: string;
@@ -25,6 +27,7 @@ interface ProgramCardProps {
 
 const ProgramCard: NextPage<ProgramCardProps> = ({
   ageGroup,
+  slug,
   backgroundClass,
   textColorClass,
   schedule,
@@ -49,7 +52,7 @@ const ProgramCard: NextPage<ProgramCardProps> = ({
           <div className="relative h-full w-full">
             <Image
               src={imageSrc}
-              alt={`${ageGroup} youth soccer program illustration — Excel Pro Soccer Academy Markham`}
+              alt={`${ageGroup} youth soccer program illustration — Excel Pro Soccer Academy`}
               fill
               sizes="(max-width: 768px) 100vw, 50vw"
               className="object-contain object-right-bottom"
@@ -74,7 +77,10 @@ const ProgramCard: NextPage<ProgramCardProps> = ({
 
             {/* Link to the program's detailed page */}
             <Link
-              href={`/program/${ageGroup.toLowerCase().replace(/\s+/g, "")}`}
+              href={`/program/${
+                slug ??
+                ageGroup.toLowerCase().replace(/\s+/g, "").replace(/–/g, "-")
+              }`}
               aria-label={`Details about ${ageGroup} soccer program`}
               title={`Soccer training program for ${ageGroup}`}
             >

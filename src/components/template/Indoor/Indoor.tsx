@@ -9,25 +9,18 @@ import {
   type LeagueSeason,
   type PublicRegisterPayload,
 } from "@/services/league";
+import { VENUE, groupByKey, shortScheduleLines } from "@/data/academy";
 
 const SLUG = "indoor";
 
-/** Where the indoor season runs. */
-const VENUE = {
-  name: "Richmond Hill Green Dome",
-  mapsUrl: "https://maps.app.goo.gl/12Z1J3q9KCTTRUMu6",
-};
-
 /**
- * Weekly training times, keyed by the age-group names the season API uses.
- * A group missing from this map simply shows no times, so a future season
- * with different groups degrades gracefully.
+ * Venue and weekly training times come from src/data/academy.ts — the same
+ * source as /program — so the two pages can never disagree. A group the
+ * season API returns that is not in that file simply shows no times.
  */
-const SCHEDULE: Record<string, string[]> = {
-  "U5-U8": ["Sun 12–1 pm", "Wed 5–6 pm"],
-  "U9-U12": ["Sun 1–2 pm", "Tue 5–6 pm"],
-  "U13-U14": ["Mon 5–6 pm", "Fri 5–6 pm"],
-  "U15-U18": ["Mon 5–6 pm", "Fri 5–6 pm"],
+const scheduleFor = (ageGroup: string): string[] => {
+  const g = groupByKey(ageGroup);
+  return g ? shortScheduleLines(g) : [];
 };
 
 const money = (n: number) => `$${Number(n || 0).toFixed(0)}`;
@@ -271,7 +264,7 @@ const Indoor = () => {
                       {g.label}
                     </p>
                   )}
-                  {SCHEDULE[g.ageGroup]?.map((slot) => (
+                  {scheduleFor(g.ageGroup).map((slot) => (
                     <p key={slot} className="mt-1 text-xs text-gray-600">
                       {slot}
                     </p>

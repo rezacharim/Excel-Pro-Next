@@ -120,7 +120,7 @@ const Coaches = ({ coaches: fromApi }: { coaches: ApiCoach[] }) => {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.9, duration: 0.6 }}
             >
-              Our team of 12 professional coaches develops players ages 5 to 18
+              Our team of 12 professional coaches develops players ages 6 to 18
               with passion, experience and a proven training philosophy.
             </motion.p>
           </motion.div>
@@ -194,7 +194,7 @@ const Coaches = ({ coaches: fromApi }: { coaches: ApiCoach[] }) => {
           transition={{ duration: 0.6 }}
         >
           <h2 className="text-2xl font-bold text-gray-900">
-            Train with us at Ashton Meadows Park
+            Train with us at Richmond Hill Green Dome
           </h2>
           <p className="mt-2 text-gray-600">
             Practices run Monday and Wednesday evenings in Markham, Ontario.

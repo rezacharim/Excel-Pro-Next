@@ -110,14 +110,16 @@ const MatchCalendar: NextPage<CalendarViewProps> = ({
     ageCategory = ageCategory.toUpperCase();
 
     const isU5to8 =
-      /U(5|6|7|8)\b/.test(ageCategory) ||
+      /U(5|6|7|8|9)\b/.test(ageCategory) ||
       ageCategory.includes("U5 - U8") ||
-      ageCategory.includes("U5-U8");
+      ageCategory.includes("U5-U8") ||
+      ageCategory.includes("U6-U9");
 
     const isU9to12 =
-      /U(9|10|11|12)\b/.test(ageCategory) ||
+      /U(10|11|12)\b/.test(ageCategory) ||
       ageCategory.includes("U9 - U12") ||
-      ageCategory.includes("U9-U12");
+      ageCategory.includes("U9-U12") ||
+      ageCategory.includes("U10-U12");
 
     const isU13to14 =
       /U(13|14)\b/.test(ageCategory) ||
@@ -398,7 +400,7 @@ const MatchCalendar: NextPage<CalendarViewProps> = ({
                                 : "text-gray-400"
                             }`}
                           >
-                            U5-U8
+                            U6-U9
                           </div>
                         )}
                         {dayData.hasU9to12 && (
@@ -410,7 +412,7 @@ const MatchCalendar: NextPage<CalendarViewProps> = ({
                                 : "text-gray-400"
                             }`}
                           >
-                            U9-U12
+                            U10-U12
                           </div>
                         )}
                         {dayData.hasU13to14 && (

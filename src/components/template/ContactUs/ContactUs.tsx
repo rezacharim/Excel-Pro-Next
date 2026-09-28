@@ -6,6 +6,12 @@ import FAQItem from "@/components/atoms/FAQItem/FAQItem";
 import FAQSection from "@/components/organisms/FAQSection/FAQSection";
 import ContactInfoSection from "@/components/organisms/ContactInfoSection/ContactInfoSection";
 import { contactFaqData } from "@/data/faq";
+import {
+  ACADEMY_GROUPS,
+  CURRENT_SEASON,
+  VENUE,
+  shortScheduleLines,
+} from "@/data/academy";
 
 // Dynamically load the map component with SSR disabled
 // This is crucial to prevent the "window is not defined" error
@@ -28,9 +34,8 @@ type FAQItem = {
 };
 
 const ContactUs = () => {
-  // Ashton Meadows Park, Markham, Ontario
-  // TODO (Reza): confirm exact coordinates of the training field
-  const position: [number, number] = [43.8887, -79.3537];
+  // Training venue — from src/data/academy.ts, same as /program and /indoor.
+  const position: [number, number] = [VENUE.lat, VENUE.lng];
 
   const faqData: FAQItem[] = contactFaqData;
 
@@ -96,7 +101,7 @@ const ContactUs = () => {
           {/* Use the dynamic component that disables SSR */}
           <DynamicLeafletMap
             position={position}
-            popupText="Ashton Meadows Park - Excel Pro Soccer Academy"
+            popupText={`${VENUE.name} - Excel Pro Soccer Academy`}
           />
         </div>
       </motion.div>
@@ -124,24 +129,31 @@ const ContactUs = () => {
 
         <div className="bg-gray-50 border border-gray-100 rounded-xl shadow-sm p-6 md:p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
-            <h3 className="font-bold text-gray-900 mb-2">
-              Ashton Meadows Park
-            </h3>
-            {/* TODO (Reza): confirm exact street address / postal code */}
+            <h3 className="font-bold text-gray-900 mb-2">{VENUE.name}</h3>
             <p className="text-gray-600 text-sm">
-              3rd Line, Markham, Ontario
+              <a
+                href={VENUE.mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                {VENUE.address}
+              </a>
             </p>
           </div>
           <div>
-            <h3 className="font-bold text-gray-900 mb-2">Practice Nights</h3>
+            <h3 className="font-bold text-gray-900 mb-2">Training Times</h3>
             <p className="text-gray-600 text-sm">
-              Monday &amp; Wednesday evenings
+              From {CURRENT_SEASON.startsOn} — twice a week
             </p>
-            <p className="text-gray-600 text-sm mt-1">
-              Ages 5-12: 5:00 PM - 6:30 PM
-              <br />
-              Ages 13-18: 6:30 PM - 8:00 PM
-            </p>
+            <ul className="text-gray-600 text-sm mt-1 space-y-0.5">
+              {ACADEMY_GROUPS.map((g) => (
+                <li key={g.key}>
+                  <span className="font-medium text-gray-800">{g.short}:</span>{" "}
+                  {shortScheduleLines(g).join(" · ")}
+                </li>
+              ))}
+            </ul>
           </div>
           <div>
             <h3 className="font-bold text-gray-900 mb-2">Game Days</h3>

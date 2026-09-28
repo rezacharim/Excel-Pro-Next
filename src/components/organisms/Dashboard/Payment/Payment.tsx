@@ -171,8 +171,8 @@ const Payment: NextPage = () => {
 
       const planFilters = [
         { name: "free", value: SubscriptionPlan.FREE },
-        { name: "u5-u8", value: SubscriptionPlan.U5_U8 },
-        { name: "u9-u12", value: SubscriptionPlan.U9_U12 },
+        { name: "u6-u9", value: SubscriptionPlan.U5_U8 },
+        { name: "u10-u12", value: SubscriptionPlan.U9_U12 },
         { name: "u13-u14", value: SubscriptionPlan.U13_U14 },
         { name: "u15-u18", value: SubscriptionPlan.U15_U18 },
       ];

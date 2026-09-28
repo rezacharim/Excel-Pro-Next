@@ -1,5 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Age groups were renamed for the 2026/27 season (U5-U8 → U6-U9,
+  // U9-U12 → U10-U12). Old links in Google, WhatsApp and flyers keep working.
+  async redirects() {
+    return [
+      { source: "/program/u5-u8", destination: "/program/u6-u9", permanent: true },
+      { source: "/program/u9-u12", destination: "/program/u10-u12", permanent: true },
+    ];
+  },
   images: {
     remotePatterns: [
       {

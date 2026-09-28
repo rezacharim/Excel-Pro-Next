@@ -25,8 +25,8 @@ const MatchdaySchedule: NextPage<MatchdayScheduleProps> = ({
   // Updated age group filter options
   const ageGroups = [
     { id: "all", label: "View all" },
-    { id: "u5-u8", label: "U5 - U8" },
-    { id: "u9-u12", label: "U9 - U12" },
+    { id: "u5-u8", label: "U6 - U9" },
+    { id: "u9-u12", label: "U10 - U12" },
     { id: "u13-u14", label: "U13 - U14" },
     { id: "u15-u18", label: "U15 - U18" },
   ];
@@ -59,18 +59,20 @@ const MatchdaySchedule: NextPage<MatchdayScheduleProps> = ({
       if (selectedAgeGroup === "u5-u8") {
         // Check if the age category contains numbers between 5-8 or the range text
         const hasU5to8 =
-          /U(5|6|7|8)\b/.test(ageCategory) ||
+          /U(5|6|7|8|9)\b/.test(ageCategory) ||
           ageCategory.includes("U5 - U8") ||
-          ageCategory.includes("U5-U8");
+          ageCategory.includes("U5-U8") ||
+      ageCategory.includes("U6-U9");
         if (!hasU5to8) return false;
       }
 
       if (selectedAgeGroup === "u9-u12") {
         // Check if the age category contains numbers between 9-12 or the range text
         const hasU9to12 =
-          /U(9|10|11|12)\b/.test(ageCategory) ||
+          /U(10|11|12)\b/.test(ageCategory) ||
           ageCategory.includes("U9 - U12") ||
-          ageCategory.includes("U9-U12");
+          ageCategory.includes("U9-U12") ||
+      ageCategory.includes("U10-U12");
         if (!hasU9to12) return false;
       }
 

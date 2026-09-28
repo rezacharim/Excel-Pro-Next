@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { VENUE } from "@/data/academy";
 import Landing from "@/components/template/Landing/Landing";
 
 const SITE_URL = "https://www.excelproso.com";
@@ -95,11 +96,12 @@ export default async function Home() {
       },
       address: {
         "@type": "PostalAddress",
-        // TODO: Reza to confirm the exact street address / postal code for Ashton Meadows Park
-        streetAddress: "Ashton Meadows Park, 3rd Line",
-        addressLocality: "Markham",
-        addressRegion: "ON",
-        addressCountry: "CA",
+        // Where training happens — src/data/academy.ts
+        streetAddress: VENUE.street,
+        addressLocality: VENUE.city,
+        postalCode: VENUE.postalCode,
+        addressRegion: VENUE.province,
+        addressCountry: VENUE.country,
       },
       areaServed: [
         { "@type": "City", name: "Markham" },
@@ -146,7 +148,7 @@ export default async function Home() {
         "@id": `${SITE_URL}/#organization`,
       },
       description:
-        "Excel Pro Academy offers professional soccer training and development programs for youth ages 5 to 18 in Toronto. Join us to develop skills, teamwork, and excellence.",
+        "Excel Pro Academy offers professional soccer training and development programs for youth ages 6 to 18 in Toronto. Join us to develop skills, teamwork, and excellence.",
     },
     // LocalBusiness schema
     {
@@ -161,24 +163,31 @@ export default async function Home() {
       url: SITE_URL,
       address: {
         "@type": "PostalAddress",
-        // TODO: Reza to confirm the exact street address / postal code for Ashton Meadows Park
-        streetAddress: "Ashton Meadows Park, 3rd Line",
-        addressLocality: "Markham",
-        addressRegion: "ON",
-        addressCountry: "CA",
+        // Where training happens — src/data/academy.ts
+        streetAddress: VENUE.street,
+        addressLocality: VENUE.city,
+        postalCode: VENUE.postalCode,
+        addressRegion: VENUE.province,
+        addressCountry: VENUE.country,
       },
       geo: {
         "@type": "GeoCoordinates",
-        // TODO: Reza to confirm exact coordinates of Ashton Meadows Park
-        latitude: "43.8887",
-        longitude: "-79.3537",
+        latitude: String(VENUE.lat),
+        longitude: String(VENUE.lng),
       },
+      // Training sessions (indoor season), from src/data/academy.ts.
       openingHoursSpecification: [
         {
           "@type": "OpeningHoursSpecification",
-          dayOfWeek: ["Monday", "Wednesday"],
+          dayOfWeek: ["Sunday"],
+          opens: "12:00",
+          closes: "14:00",
+        },
+        {
+          "@type": "OpeningHoursSpecification",
+          dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Friday"],
           opens: "17:00",
-          closes: "20:00",
+          closes: "18:00",
         },
       ],
     },
@@ -209,7 +218,7 @@ export default async function Home() {
             Markham, Ontario and the largest Iranian-based soccer academy in the
             Toronto area. Founded by former Iran National Team and Persepolis FC
             player Reza Abedian, we offer professional soccer training for youth
-            ages 5 to 18. Our programs focus on developing technical skills,
+            ages 6 to 18, training at Richmond Hill Green Dome. Our programs focus on developing technical skills,
             teamwork, strategy, and athletic excellence both on and off the
             field.
           </p>

@@ -105,7 +105,12 @@ export const GENDER_OPTIONS = ["Male", "Female", "Prefer not to say"] as const;
 export type Gender = (typeof GENDER_OPTIONS)[number];
 
 /** Actions POST /membership/bulk accepts. */
-export type BulkAction = "stop" | "reactivate" | "suspend" | "set-plan";
+export type BulkAction =
+  | "stop"
+  | "reactivate"
+  | "suspend"
+  | "set-plan"
+  | "set-period";
 
 /** Body of POST /membership/bulk */
 export interface BulkMembershipDto {
@@ -114,6 +119,9 @@ export interface BulkMembershipDto {
   reason?: string;
   plan?: string;
   note?: string;
+  /** set-period: paid-up-to date and optional start, YYYY-MM-DD */
+  endDate?: string;
+  startDate?: string;
 }
 
 export interface BulkFailure {

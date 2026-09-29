@@ -78,7 +78,7 @@ type ModalType =
   | "unsuspend";
 
 /** Which bulk confirmation is on screen, if any. */
-type BulkModalType = "stop" | "set-plan";
+type BulkModalType = "stop" | "set-plan" | "set-period";
 
 /** The four real programs a player can belong to. */
 export const PLAN_OPTIONS: { value: PlanValue; label: string }[] = [
@@ -538,6 +538,10 @@ const Memberships: NextPage = () => {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkModal, setBulkModal] = useState<BulkModalType | null>(null);
   const [bulkPlan, setBulkPlan] = useState<PlanValue>("U9_U12");
+  // Bulk "Set paid period" — for families who paid on paper / outside the site.
+  const [bulkStart, setBulkStart] = useState("");
+  const [bulkEnd, setBulkEnd] = useState("");
+  const [bulkNote, setBulkNote] = useState("");
   const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
 
   // Invite to sign up. `inviteIds` doubles as "is the dialog open"; it is a
@@ -893,6 +897,27 @@ const Memberships: NextPage = () => {
       { userIds: selectedIds, action: "set-plan", plan: bulkPlan },
       `moved to ${planLabel(bulkPlan)}`
     );
+
+  const submitBulkSetPeriod = () => {
+    if (!bulkEnd) {
+      showToast("error", "Choose the date they are paid up to.");
+      return;
+    }
+    if (bulkStart && bulkStart > bulkEnd) {
+      showToast("error", "The period cannot start after it ends.");
+      return;
+    }
+    runBulkAction(
+      {
+        userIds: selectedIds,
+        action: "set-period",
+        endDate: bulkEnd,
+        ...(bulkStart ? { startDate: bulkStart } : {}),
+        ...(bulkNote.trim() ? { note: bulkNote.trim() } : {}),
+      },
+      `paid up to ${bulkEnd}`
+    );
+  };
 
   const closeModal = () => {
     if (isSubmitting) return;
@@ -2372,6 +2397,19 @@ const Memberships: NextPage = () => {
                 Move to program…
               </button>
               <button
+                onClick={() => {
+                  setBulkStart("");
+                  setBulkEnd("");
+                  setBulkNote("");
+                  setBulkModal("set-period");
+                }}
+                disabled={isBulkSubmitting}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20 transition-colors text-sm font-medium disabled:opacity-60"
+              >
+                <CalendarClock size={16} />
+                Set paid period…
+              </button>
+              <button
                 onClick={() => setBulkModal("stop")}
                 disabled={isBulkSubmitting}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-[#E43125] text-white rounded-lg hover:bg-[#c9281e] transition-colors text-sm font-medium disabled:opacity-60"
@@ -3455,7 +3493,9 @@ const Memberships: NextPage = () => {
             aria-label={
               bulkModal === "stop"
                 ? "Mark players as no longer members"
-                : "Move players to a program"
+                : bulkModal === "set-period"
+                  ? "Set paid period"
+                  : "Move players to a program"
             }
             className="relative bg-white rounded-lg shadow-xl w-full max-w-md p-5 md:p-6 max-h-[90vh] overflow-y-auto"
           >
@@ -3467,7 +3507,53 @@ const Memberships: NextPage = () => {
               <X size={20} />
             </button>
 
-            {bulkModal === "stop" ? (
+            {bulkModal === "set-period" ? (
+              <>
+                <h2 className="text-lg font-bold mb-2">Set paid period</h2>
+                <p className="text-gray-600 text-sm mb-4">
+                  For families who already paid on paper, cash or e-transfer
+                  outside the website. {selectedIds.length} selected player
+                  {selectedIds.length === 1 ? "" : "s"} will show as paid up to
+                  the date you choose. No money is recorded and no email is
+                  sent — use Record payment on a player for that.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-sm">
+                    <span className="block text-gray-700 mb-1">
+                      Period started (optional)
+                    </span>
+                    <input
+                      type="date"
+                      value={bulkStart}
+                      onChange={(e) => setBulkStart(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <span className="block text-gray-700 mb-1">
+                      Paid up to <span className="text-[#E43125]">*</span>
+                    </span>
+                    <input
+                      type="date"
+                      value={bulkEnd}
+                      onChange={(e) => setBulkEnd(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                    />
+                  </label>
+                </div>
+                <label className="block text-sm mt-3">
+                  <span className="block text-gray-700 mb-1">
+                    Note (optional)
+                  </span>
+                  <input
+                    value={bulkNote}
+                    onChange={(e) => setBulkNote(e.target.value)}
+                    placeholder="e.g. Paid on paper, Sept-Oct"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                  />
+                </label>
+              </>
+            ) : bulkModal === "stop" ? (
               <>
                 <h2 className="text-lg font-bold mb-2">
                   Mark {selectedIds.length} player
@@ -3525,7 +3611,11 @@ const Memberships: NextPage = () => {
               </button>
               <button
                 onClick={
-                  bulkModal === "stop" ? submitBulkStop : submitBulkSetPlan
+                  bulkModal === "stop"
+                    ? submitBulkStop
+                    : bulkModal === "set-period"
+                      ? submitBulkSetPeriod
+                      : submitBulkSetPlan
                 }
                 disabled={isBulkSubmitting}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-60 bg-[#E43125] hover:bg-[#c9281e]"
@@ -3535,7 +3625,9 @@ const Memberships: NextPage = () => {
                 )}
                 {bulkModal === "stop"
                   ? "Yes, mark as no longer members"
-                  : `Move to ${planLabel(bulkPlan)}`}
+                  : bulkModal === "set-period"
+                    ? "Save period"
+                    : `Move to ${planLabel(bulkPlan)}`}
               </button>
             </div>
           </div>

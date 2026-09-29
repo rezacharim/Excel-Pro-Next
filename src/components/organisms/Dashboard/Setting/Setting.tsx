@@ -3,14 +3,15 @@
 import { ElementType, useState } from "react";
 import AdminProfileUpdate from "@/components/molecules/AdminProfile/AdminProfile";
 import SiteTextEditor from "@/components/molecules/SiteTextEditor/SiteTextEditor";
+import NotificationEmails from "@/components/molecules/NotificationEmails/NotificationEmails";
 import {
+  FiBell,
   FiType,
   FiUser,
   // FiSettings,
   // FiCreditCard,
   // FiShield,
   // FiUsers,
-  // FiBell,
 } from "react-icons/fi";
 
 interface TabItem {
@@ -26,6 +27,7 @@ const Setting = () => {
   const tabs: TabItem[] = [
     { id: "profile", label: "Profile", icon: FiUser },
     { id: "site-text", label: "Website text", icon: FiType },
+    { id: "notify", label: "Notifications", icon: FiBell },
     // { id: "security", label: "Security", icon: FiShield },
     // { id: "notifications", label: "Notifications", icon: FiBell },
     // { id: "billing", label: "Billing", icon: FiCreditCard },
@@ -42,7 +44,7 @@ const Setting = () => {
             Admin Settings
           </h1>
           <p className="text-gray-500 mt-1">
-            Your admin profile, and the wording used on the public website
+            Your admin profile, the wording on the public website, and who is emailed about new registrations
           </p>
         </div>
 
@@ -74,6 +76,8 @@ const Setting = () => {
           {activeTab === "profile" && <AdminProfileUpdate />}
 
           {activeTab === "site-text" && <SiteTextEditor />}
+
+          {activeTab === "notify" && <NotificationEmails />}
 
           {activeTab === "security" && (
             <div className="bg-white rounded-lg shadow-sm p-6">

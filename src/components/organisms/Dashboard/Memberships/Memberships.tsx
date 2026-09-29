@@ -518,6 +518,8 @@ const Memberships: NextPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [programFilter, setProgramFilter] = useState<ProgramFilter>("all");
+  // "" = everyone; otherwise a season id, or "any" for any season.
+  const [seasonFilter, setSeasonFilter] = useState<string>("");
   const [attendanceFilter, setAttendanceFilter] =
     useState<AttendanceFilter>("all");
   const [invitedFilter, setInvitedFilter] = useState<InvitedFilter>("all");
@@ -682,6 +684,15 @@ const Memberships: NextPage = () => {
     }
   };
 
+  // Seasons anyone is registered for (Winter League, Indoor…), for the filter.
+  const seasonOptions = useMemo(() => {
+    const seen = new Map<number, string>();
+    rows.forEach((r) =>
+      (r.programs ?? []).forEach((p) => seen.set(p.seasonId, p.seasonName))
+    );
+    return Array.from(seen, ([id, name]) => ({ id, name }));
+  }, [rows]);
+
   const filteredRows = useMemo(() => {
     let result = rows;
 
@@ -714,6 +725,14 @@ const Memberships: NextPage = () => {
 
     if (attendanceFilter !== "all") {
       result = result.filter((r) => attendanceOf(r) === attendanceFilter);
+    }
+
+    if (seasonFilter) {
+      result = result.filter((r) =>
+        (r.programs ?? []).some(
+          (p) => seasonFilter === "any" || String(p.seasonId) === seasonFilter
+        )
+      );
     }
 
     if (invitedFilter !== "all") {
@@ -768,6 +787,7 @@ const Memberships: NextPage = () => {
     rows,
     statusFilter,
     programFilter,
+    seasonFilter,
     attendanceFilter,
     invitedFilter,
     searchQuery,
@@ -2034,6 +2054,30 @@ const Memberships: NextPage = () => {
             ))}
           </select>
         </div>
+        {seasonOptions.length > 0 && (
+          <div className="flex items-center gap-2">
+            <label
+              htmlFor="season-filter"
+              className="text-sm text-gray-600 whitespace-nowrap"
+            >
+              Season
+            </label>
+            <select
+              id="season-filter"
+              value={seasonFilter}
+              onChange={(e) => setSeasonFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+            >
+              <option value="">Everyone</option>
+              <option value="any">Registered for any season</option>
+              {seasonOptions.map((o) => (
+                <option key={o.id} value={String(o.id)}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <label
             htmlFor="attendance-filter"
@@ -2194,6 +2238,34 @@ const Memberships: NextPage = () => {
                                   : row.email || "—"}
                               </div>
                               {renderInvitedChip(row)}
+                              {(row.programs ?? []).map((p) => (
+                                <div
+                                  key={p.registrationId}
+                                  title={`${p.seasonName} · ${p.ageGroup} · paid $${p.amountPaid} of $${p.feeTotal}`}
+                                  className={`mt-1 inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                                    p.status === "waitlist"
+                                      ? "bg-gray-100 text-gray-600"
+                                      : p.balance <= 0
+                                        ? "bg-green-100 text-green-800"
+                                        : p.amountPaid > 0
+                                          ? "bg-amber-100 text-amber-800"
+                                          : "bg-red-50 text-red-700"
+                                  }`}
+                                >
+                                  <span className="truncate">
+                                    {p.kind === "indoor" ? "Indoor" : p.seasonName.replace(/\s*20\d\d\/\d\d$/, "")}{" "}
+                                    {p.ageGroup}
+                                  </span>
+                                  <span>
+                                    ·{" "}
+                                    {p.status === "waitlist"
+                                      ? "waitlist"
+                                      : p.balance <= 0
+                                        ? `paid $${p.amountPaid}`
+                                        : `$${p.amountPaid} / $${p.feeTotal}`}
+                                  </span>
+                                </div>
+                              ))}
                             </div>
                           </div>
                         </td>

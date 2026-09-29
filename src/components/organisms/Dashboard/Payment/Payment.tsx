@@ -806,15 +806,26 @@ const Payment: NextPage = () => {
                           </td>
                           <td className="py-4 px-6 whitespace-nowrap">
                             <div className="flex gap-2">
-                              {transfer.status === TransferStatus.CONFIRMED && (
+                              {/* Pending/expired too: a parent can send the money without
+                                  clicking "I've sent it". You see the bank — you decide. */}
+                              {(transfer.status === TransferStatus.CONFIRMED ||
+                                transfer.status === TransferStatus.PENDING ||
+                                transfer.status === TransferStatus.EXPIRED) && (
                                 <>
                                   <button
                                     onClick={() =>
                                       verifyTransfer(transfer.id, true)
                                     }
+                                    title={
+                                      transfer.status === TransferStatus.CONFIRMED
+                                        ? "Parent says they sent it — approve once it is in the bank"
+                                        : "Parent never clicked 'I've sent it'. Approve only if the money is in the bank."
+                                    }
                                     className="bg-green-100 text-green-600 hover:bg-green-200 px-3 py-1 rounded-lg text-sm"
                                   >
-                                    Approve
+                                    {transfer.status === TransferStatus.CONFIRMED
+                                      ? "Approve"
+                                      : "Money received"}
                                   </button>
                                   <button
                                     onClick={() =>

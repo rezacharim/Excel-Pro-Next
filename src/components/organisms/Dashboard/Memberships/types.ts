@@ -51,6 +51,21 @@ export interface MembershipRow {
   /** Allergies / medical info a coach must know. Optional. */
   medicalNotes: string | null;
   dateOfBirth: string | null;
+  /** Winter League / Indoor registrations for this player (newest first). */
+  programs?: MemberProgram[];
+}
+
+/** A season registration shown on the member's row. */
+export interface MemberProgram {
+  registrationId: number;
+  seasonId: number;
+  seasonName: string;
+  kind: string | null;
+  ageGroup: string;
+  status: string;
+  feeTotal: number;
+  amountPaid: number;
+  balance: number;
 }
 
 export type PaymentMethod = "etransfer" | "cash" | "other";

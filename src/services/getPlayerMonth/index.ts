@@ -1,4 +1,4 @@
-ts
+
 import { Player } from "./types";
 
 export const fetchAllPlayerMonth = async (): Promise<Player[]> => {

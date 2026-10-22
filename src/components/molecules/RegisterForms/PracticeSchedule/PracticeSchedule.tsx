@@ -3,6 +3,7 @@ import {
   CURRENT_SEASON,
   VENUE,
   scheduleLines,
+  seasonTimingText,
 } from "@/data/academy";
 
 /** Training times shown on the register form — same source as /program. */
@@ -16,8 +17,8 @@ const PracticeSchedule = () => {
         Location: {VENUE.name}, {VENUE.address}
       </p>
       <p className="mb-4">
-        {CURRENT_SEASON.name} starts {CURRENT_SEASON.startsOn} — two sessions
-        a week for every age group
+        {CURRENT_SEASON.name} {seasonTimingText()} · two sessions a week for
+        every age group
       </p>
 
       <div className="border rounded-lg shadow-sm overflow-hidden">

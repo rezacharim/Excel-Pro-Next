@@ -95,6 +95,13 @@ export interface RecordPaymentDto {
    * current end date — used when catching up on an old payment.
    */
   startFromPaymentDate?: boolean;
+  /**
+   * The exact paid period chosen in the date picker, "YYYY-MM-DD". When sent,
+   * the server saves these dates as they are (any length, not only whole
+   * months) and `months` / `startFromPaymentDate` are ignored.
+   */
+  periodStart?: string;
+  periodEnd?: string;
 }
 
 /** The four real programs a player can belong to. */

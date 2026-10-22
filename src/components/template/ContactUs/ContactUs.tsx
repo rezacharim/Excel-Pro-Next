@@ -10,6 +10,7 @@ import {
   ACADEMY_GROUPS,
   CURRENT_SEASON,
   VENUE,
+  seasonHasStarted,
   shortScheduleLines,
 } from "@/data/academy";
 
@@ -144,7 +145,9 @@ const ContactUs = () => {
           <div>
             <h3 className="font-bold text-gray-900 mb-2">Training Times</h3>
             <p className="text-gray-600 text-sm">
-              From {CURRENT_SEASON.startsOn} — twice a week
+              {seasonHasStarted()
+                ? "Season under way — twice a week, new players welcome"
+                : `From ${CURRENT_SEASON.startsOn} — twice a week`}
             </p>
             <ul className="text-gray-600 text-sm mt-1 space-y-0.5">
               {ACADEMY_GROUPS.map((g) => (

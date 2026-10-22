@@ -12,7 +12,8 @@ const SummeryPrograms: NextPage = () => {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, amount: 0.3 });
 
-  const displayedPrograms = programs.slice(0, 3);
+  // All four age groups: with three, U15–U18 never appeared on the home page.
+  const displayedPrograms = programs.slice(0, 4);
 
   const sectionVariants = {
     hidden: { opacity: 0, y: 30 },
@@ -85,7 +86,7 @@ const SummeryPrograms: NextPage = () => {
         </div>
 
         <motion.ul
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 list-none p-0"
+          className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 list-none p-0"
           initial="hidden"
           animate={inView ? "visible" : "hidden"}
           variants={sectionVariants}

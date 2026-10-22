@@ -56,6 +56,13 @@ export interface Season {
   name: string;
   /** Shown as "starts …". Human text on purpose, so "late April" is allowed. */
   startsOn: string;
+  /**
+   * The real first day as "YYYY-MM-DD", or null while it is only "late April".
+   * Once this date has passed every page stops saying "starts October 5" —
+   * parents read a date in the past as "too late to join" — and says the
+   * season is under way and new players are still welcome instead.
+   */
+  startsOnIso: string | null;
   venue: Venue;
   /** Where every "Register" / "Reserve a spot" button goes this season. */
   registerPath: string;
@@ -70,6 +77,7 @@ export const SEASONS: Record<SeasonKey, Season> = {
     key: "indoor",
     name: "Indoor Season 2026/27",
     startsOn: "October 5, 2026",
+    startsOnIso: "2026-10-05",
     registerPath: "/indoor",
     confirmed: true,
     venue: {
@@ -111,6 +119,7 @@ export const SEASONS: Record<SeasonKey, Season> = {
     key: "outdoor",
     name: "Outdoor Season 2027",
     startsOn: "late April 2027",
+    startsOnIso: null,
     registerPath: "/register",
     confirmed: false,
     venue: {
@@ -177,6 +186,33 @@ export const AGE_RANGE = { min: 6, max: 18, text: "6 to 18", short: "6-18" } as 
 // What the rest of the site reads. Everything below follows ACTIVE_SEASON.
 
 export const CURRENT_SEASON: Season = SEASONS[ACTIVE_SEASON];
+
+/** True once the season's first day has begun (local time). */
+export const seasonHasStarted = (
+  season: Season = CURRENT_SEASON,
+  now: Date = new Date()
+): boolean =>
+  !!season.startsOnIso &&
+  now.getTime() >= new Date(`${season.startsOnIso}T00:00:00`).getTime();
+
+/**
+ * The season's timing as parents should read it today.
+ *   before: "starts October 5, 2026"
+ *   after:  "under way since October 5 — new players can join any time"
+ * Pages built ahead of time recompute this on every deploy, and the pages that
+ * show it are re-generated hourly, so the wording flips on its own.
+ */
+export const seasonTimingText = (
+  season: Season = CURRENT_SEASON,
+  now: Date = new Date()
+): string => {
+  if (!seasonHasStarted(season, now)) return `starts ${season.startsOn}`;
+  const since = new Date(`${season.startsOnIso}T00:00:00`).toLocaleDateString(
+    "en-CA",
+    { month: "long", day: "numeric" }
+  );
+  return `under way since ${since} — new players can join any time`;
+};
 export const VENUE: Venue = CURRENT_SEASON.venue;
 export const REGISTER_PATH = CURRENT_SEASON.registerPath;
 

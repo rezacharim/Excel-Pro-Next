@@ -128,6 +128,12 @@ const Indoor = () => {
   const pastDeadline =
     !!season?.registrationOpen && typeof daysLeft === "number" && daysLeft < 0;
   const closed = !!season && !season.registrationOpen;
+  // Once the first session has happened, "starting October 5" reads as "too
+  // late" — families stopped registering because of it. From that day the page
+  // says the season is under way and that new players are still welcome.
+  const seasonStarted =
+    !!season?.startsOn &&
+    Date.now() >= new Date(`${season.startsOn}T00:00:00`).getTime();
 
   return (
     <section className="bg-gray-50">
@@ -139,6 +145,19 @@ const Indoor = () => {
           <h1 className="text-3xl font-bold leading-tight sm:text-5xl">
             {season?.tagline ?? season?.name ?? "Indoor Season"}
           </h1>
+          {seasonStarted && !closed ? (
+            <p className="mt-4 max-w-2xl text-lg text-gray-300">
+              <strong className="text-white">
+                The season is under way, and it is not too late to join.
+              </strong>{" "}
+              Training started {longDate(season!.startsOn)} at {VENUE.name} and
+              new players can start any week while spaces last
+              {season?.depositAmount
+                ? ` — a ${money(season.depositAmount)} deposit secures the spot`
+                : ""}
+              .
+            </p>
+          ) : (
           <p className="mt-4 max-w-2xl text-lg text-gray-300">
             Reserve your child&apos;s spot for the indoor season
             {season?.startsOn ? `, starting ${longDate(season.startsOn)}` : ""}.
@@ -155,6 +174,7 @@ const Indoor = () => {
                   : ""}
             .
           </p>
+          )}
 
           {season && (
             <div className="mt-8 grid gap-4 sm:grid-cols-3">
@@ -170,7 +190,17 @@ const Indoor = () => {
                 total={season.newPlayerFee}
                 lines={season.newPlayerLines}
               />
-              {pastDeadline ? (
+              {seasonStarted && !closed ? (
+                <div className="rounded-xl bg-[#E43125] p-5">
+                  <p className="text-xs uppercase tracking-wide text-white/80">
+                    Season under way
+                  </p>
+                  <p className="mt-1 text-2xl font-bold">Join any time</p>
+                  <p className="text-sm text-white/80">
+                    new players welcome while spaces last
+                  </p>
+                </div>
+              ) : pastDeadline ? (
                 <div className="rounded-xl bg-[#E43125] p-5">
                   <p className="text-xs uppercase tracking-wide text-white/80">
                     Registration
@@ -306,12 +336,16 @@ const Indoor = () => {
         {season && !closed && !started && (
           <div className="rounded-2xl bg-white p-7 text-center shadow-sm ring-1 ring-gray-200">
             <h2 className="text-xl font-bold text-[#020022]">
-              Reserve a spot
+              {seasonStarted ? "Join the indoor season" : "Reserve a spot"}
             </h2>
             <p className="mx-auto mt-2 max-w-xl text-sm text-gray-600">
               Takes about three minutes.
               {season.depositAmount
-                ? ` A ${money(season.depositAmount)} deposit reserves the spot — any balance is due before the season starts.`
+                ? ` A ${money(season.depositAmount)} deposit reserves the spot — any balance is due ${
+                    seasonStarted
+                      ? "before your child's first session"
+                      : "before the season starts"
+                  }.`
                 : ""}{" "}
               You will get a confirmation email with the payment instructions,
               and a family account you can use from then on.
@@ -345,7 +379,9 @@ const Indoor = () => {
                 remaining balance is due
                 {season.firstPaymentDue && !pastDeadline
                   ? ` by ${longDate(season.firstPaymentDue)}`
-                  : " before the season starts"}
+                  : seasonStarted
+                    ? " before your child's first session"
+                    : " before the season starts"}
                 .
               </p>
             ) : null}
@@ -499,7 +535,12 @@ const IndoorForm = ({
       >
         ← Back
       </button>
-      <h2 className="text-xl font-bold text-[#020022]">Reserve your spot</h2>
+      <h2 className="text-xl font-bold text-[#020022]">
+        {season.startsOn &&
+        Date.now() >= new Date(`${season.startsOn}T00:00:00`).getTime()
+          ? "Join the indoor season"
+          : "Reserve your spot"}
+      </h2>
       <p className="mt-1 text-sm text-gray-600">
         Everything marked * is required. If your child already trains with us we
         will recognise them from the email address and charge the member rate.

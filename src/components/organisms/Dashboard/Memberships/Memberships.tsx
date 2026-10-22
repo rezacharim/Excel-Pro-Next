@@ -62,6 +62,13 @@ import {
   UpdateNotesDto,
 } from "./types";
 import { rowsToPlayers } from "./importPlayers";
+import PaidPeriodPicker, {
+  approxMonths,
+  dayOf,
+  fromDay,
+  prettyDay,
+  suggestedPeriod,
+} from "./PaidPeriodPicker";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -263,7 +270,7 @@ const MODAL_SUBMIT_LABEL: Record<ModalType, string> = {
   stop: "Stop membership",
   reactivate: "Reactivate",
   "set-plan": "Save program",
-  "set-renewal": "Edit membership period",
+  "set-renewal": "Save dates",
   suspend: "Suspend account",
   unsuspend: "Lift suspension",
 };
@@ -289,8 +296,11 @@ const STATUS_TABS: { key: StatusFilter; label: string }[] = [
 
 const formatDate = (iso: string | null): string => {
   if (!iso) return "—";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "—";
+  // dayOf reads a plain date stored at midnight UTC as the day that was typed,
+  // not the previous evening in Toronto (which showed every edited renewal
+  // date one day early).
+  const d = fromDay(dayOf(iso));
+  if (!d) return "—";
   return d.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
@@ -305,7 +315,8 @@ const formatDate = (iso: string | null): string => {
  */
 const toDateInputValue = (value: Date | string | null): string => {
   if (!value) return "";
-  const d = value instanceof Date ? value : new Date(value);
+  if (typeof value === "string") return dayOf(value);
+  const d = value;
   if (isNaN(d.getTime())) return "";
   const month = `${d.getMonth() + 1}`.padStart(2, "0");
   const day = `${d.getDate()}`.padStart(2, "0");
@@ -345,8 +356,8 @@ const formatInputDate = (value: string): string => {
 /** Compact form ("Aug 10") for inline mentions inside a sentence. */
 const formatShortDate = (iso: string | null): string => {
   if (!iso) return "";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "";
+  const d = fromDay(dayOf(iso));
+  if (!d) return "";
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 };
 
@@ -392,123 +403,6 @@ const renewalTime = (iso: string | null): number | null => {
   if (!iso) return null;
   const time = new Date(iso).getTime();
   return isNaN(time) ? null : time;
-};
-
-/**
- * New end date after recording a payment: max(today, current end) + the
- * number of months the payment covers (2 by default, but a sibling or monthly
- * plan buys a different length).
- * When the owner is catching up on an old payment they can ask for the period
- * to start at the payment date instead, which is the only case where the new
- * end date can land in the past.
- */
-const computeNewEndDate = (
-  currentEnd: string | null,
-  options?: {
-    paidAt?: string;
-    startFromPaymentDate?: boolean;
-    months?: number;
-  }
-): Date | null => {
-  const months = options?.months && options.months > 0 ? options.months : 2;
-  const paidAtDate = options?.paidAt ? parseDateInput(options.paidAt) : null;
-  if (options?.startFromPaymentDate) {
-    if (!paidAtDate) return null;
-    const fromPayment = new Date(paidAtDate);
-    fromPayment.setMonth(fromPayment.getMonth() + months);
-    return fromPayment;
-  }
-  const today = new Date();
-  let base = today;
-  if (currentEnd) {
-    const end = new Date(currentEnd);
-    if (!isNaN(end.getTime()) && end.getTime() > today.getTime()) {
-      base = end;
-    }
-  }
-  const result = new Date(base);
-  result.setMonth(result.getMonth() + months);
-  return result;
-};
-
-/** Plain-language preview of what a renewal date will look like on the list. */
-const renewalOutcomeText = (value: string): string | null => {
-  const days = daysFromToday(value);
-  if (days === null) return null;
-  if (days < 0) {
-    const late = Math.abs(days);
-    return `This player will show as ${late} day${late === 1 ? "" : "s"} overdue`;
-  }
-  if (days === 0) return "This player will show as due today";
-  return `This player will show as Active with ${days} day${
-    days === 1 ? "" : "s"
-  } remaining`;
-};
-
-/** The same outcome, worded to sit at the end of a longer sentence. */
-const renewalOutcomeShort = (value: string): string | null => {
-  const days = daysFromToday(value);
-  if (days === null) return null;
-  if (days < 0) {
-    const late = Math.abs(days);
-    return `shows as ${late} day${late === 1 ? "" : "s"} overdue`;
-  }
-  if (days === 0) return "shows as due today";
-  return `shows as Active with ${days} day${days === 1 ? "" : "s"} remaining`;
-};
-
-/**
- * Add whole months without ever spilling into the following month: 31 Jan
- * plus one month is 28/29 Feb, not 2/3 March. Building the date from parts
- * (rather than setMonth, which overflows) is what keeps that true.
- */
-const addMonthsClamped = (date: Date, months: number): Date => {
-  const targetMonthStart = new Date(
-    date.getFullYear(),
-    date.getMonth() + months,
-    1
-  );
-  const lastDayOfTarget = new Date(
-    targetMonthStart.getFullYear(),
-    targetMonthStart.getMonth() + 1,
-    0
-  ).getDate();
-  return new Date(
-    targetMonthStart.getFullYear(),
-    targetMonthStart.getMonth(),
-    Math.min(date.getDate(), lastDayOfTarget)
-  );
-};
-
-/** The quick lengths a family normally pays for. */
-const PERIOD_PRESETS: { months: number; label: string }[] = [
-  { months: 1, label: "1 month" },
-  { months: 2, label: "2 months" },
-  { months: 3, label: "3 months" },
-  { months: 6, label: "6 months" },
-  { months: 12, label: "1 year" },
-];
-
-/**
- * "2 months" when the two dates are exactly N months apart (including the
- * clamped month-end case), otherwise a plain day count — so the preview never
- * claims a tidy number of months that isn't true.
- */
-const periodLengthText = (start: Date, end: Date): string => {
-  const days = Math.round((end.getTime() - start.getTime()) / 86400000);
-  if (days < 0) return "";
-  const months =
-    (end.getFullYear() - start.getFullYear()) * 12 +
-    (end.getMonth() - start.getMonth());
-  if (
-    months > 0 &&
-    addMonthsClamped(start, months).getTime() === end.getTime()
-  ) {
-    return months === 12
-      ? "1 year"
-      : `${months} month${months === 1 ? "" : "s"}`;
-  }
-  return `${days} day${days === 1 ? "" : "s"}`;
 };
 
 const Memberships: NextPage = () => {
@@ -572,12 +466,13 @@ const Memberships: NextPage = () => {
 
   // Modal form fields
   const [paymentAmount, setPaymentAmount] = useState("380");
-  const [paymentMonths, setPaymentMonths] = useState("2");
+  // The paid period a payment buys — chosen in PaidPeriodPicker.
+  const [periodStart, setPeriodStart] = useState("");
+  const [periodEnd, setPeriodEnd] = useState("");
   const [paymentPeriodLabel, setPaymentPeriodLabel] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("etransfer");
   const [paymentNote, setPaymentNote] = useState("");
   const [paymentPaidAt, setPaymentPaidAt] = useState(todayInputValue);
-  const [startFromPaymentDate, setStartFromPaymentDate] = useState(false);
   const [renewalDate, setRenewalDate] = useState("");
   const [renewalStartDate, setRenewalStartDate] = useState("");
   const [renewalNote, setRenewalNote] = useState("");
@@ -932,7 +827,14 @@ const Memberships: NextPage = () => {
     setPaymentMethod("etransfer");
     setPaymentNote("");
     setPaymentPaidAt(todayInputValue());
-    setStartFromPaymentDate(false);
+    {
+      const suggested = suggestedPeriod(
+        row.currentSubscriptionEndDate,
+        todayInputValue()
+      );
+      setPeriodStart(suggested.start);
+      setPeriodEnd(suggested.end);
+    }
     // Correcting a date starts from what the player already has; a player with
     // no renewal date yet starts from today rather than an empty box.
     setRenewalDate(
@@ -1034,7 +936,7 @@ const Memberships: NextPage = () => {
       | { plan: string }
       | SuspendDto
       | SetRenewalDateDto
-  ): Promise<void> => {
+  ): Promise<unknown> => {
     const response = await fetch(`${API_URL}/membership/${path}`, {
       method: "POST",
       headers: {
@@ -1054,6 +956,11 @@ const Memberships: NextPage = () => {
         // keep generic message
       }
       throw new Error(message);
+    }
+    try {
+      return await response.json();
+    } catch {
+      return null;
     }
   };
 
@@ -1086,8 +993,10 @@ const Memberships: NextPage = () => {
 
   const paidAtDays = daysFromToday(paymentPaidAt);
   const isPaidAtInFuture = paidAtDays !== null && paidAtDays > 0;
-  /** Only a real, back-dated payment can start a period in the past. */
-  const isPaidAtInPast = paidAtDays !== null && paidAtDays < 0;
+
+  const isPaymentPeriodBackwards =
+    !!periodStart && !!periodEnd && periodStart > periodEnd;
+  const canSavePayment = !!periodEnd && !isPaymentPeriodBackwards;
 
   // Membership period editor state, recomputed on every keystroke.
   const renewalStart = parseDateInput(renewalStartDate);
@@ -1097,29 +1006,6 @@ const Memberships: NextPage = () => {
     renewalEnd !== null &&
     renewalStart.getTime() > renewalEnd.getTime();
   const canSaveRenewal = renewalEnd !== null && !isPeriodBackwards;
-
-  /** Quick length buttons count from "Paid from" when it is set, else today. */
-  const applyPeriodPreset = (months: number) => {
-    const base = parseDateInput(renewalStartDate) ?? new Date();
-    setRenewalDate(toDateInputValue(addMonthsClamped(base, months)));
-  };
-
-  /** The live preview sentence under the period fields. */
-  const renewalPreview = (): string => {
-    if (!renewalEnd) return "Choose a date to see what will happen.";
-    if (isPeriodBackwards) {
-      return "The period cannot start after it ends. Please check the dates.";
-    }
-    const outcome = renewalOutcomeShort(renewalDate);
-    if (!outcome) return "Choose a date to see what will happen.";
-    if (!renewalStart) {
-      return renewalOutcomeText(renewalDate) ?? "";
-    }
-    const length = periodLengthText(renewalStart, renewalEnd);
-    return `${formatInputDate(renewalStartDate)} → ${formatInputDate(
-      renewalDate
-    )}${length ? ` (${length})` : ""} · ${outcome}`;
-  };
 
   /** Open the invite dialog for a snapshot of ids (one row, or the ticked set). */
   const openInviteModal = (ids: number[], fromSelection: boolean) => {
@@ -1213,29 +1099,55 @@ const Memberships: NextPage = () => {
           showToast("error", "The payment date cannot be in the future");
           return;
         }
-        const months = parseInt(paymentMonths, 10);
-        if (isNaN(months) || months < 1) {
-          showToast("error", "Please choose how many months this payment covers");
+        if (!periodEnd || isPaymentPeriodBackwards) {
+          showToast("error", "Please check the paid period dates");
           return;
         }
         const body: RecordPaymentDto = {
           amount,
-          months,
+          // Kept for older servers; the exact dates below take priority.
+          months: approxMonths(periodStart || paymentPaidAt, periodEnd),
           method: paymentMethod,
           paidAt: paymentPaidAt,
-          // Only meaningful for a back-dated payment, and the tick box is
-          // hidden for today's date, so never send a stale "true".
-          startFromPaymentDate: isPaidAtInPast && startFromPaymentDate,
+          ...(periodStart ? { periodStart } : {}),
+          periodEnd,
           ...(paymentPeriodLabel.trim()
             ? { periodLabel: paymentPeriodLabel.trim() }
             : {}),
           ...(paymentNote.trim() ? { note: paymentNote.trim() } : {}),
         };
-        await runAction(
-          `${row.id}/record-payment`,
-          `Payment recorded for ${row.fullname}`,
-          body
-        );
+        try {
+          setIsSubmitting(true);
+          const saved = (await postAction(
+            `${row.id}/record-payment`,
+            body
+          )) as { currentSubscriptionEndDate?: string | null } | null;
+          // A server that predates exact periods ignores periodStart/End and
+          // adds whole months instead. Correct the dates straight away so
+          // what was chosen here is what the list shows.
+          if (saved && dayOf(saved.currentSubscriptionEndDate) !== periodEnd) {
+            await postAction(`${row.id}/set-renewal-date`, {
+              date: periodEnd,
+              ...(periodStart ? { startDate: periodStart } : {}),
+            });
+          }
+          setModal(null);
+          showToast(
+            "success",
+            `Payment recorded for ${row.fullname} · paid until ${prettyDay(
+              periodEnd,
+              true
+            )}`
+          );
+          await fetchOverview();
+        } catch (error) {
+          showToast(
+            "error",
+            error instanceof Error ? error.message : "Something went wrong"
+          );
+        } finally {
+          setIsSubmitting(false);
+        }
         break;
       }
       case "set-renewal": {
@@ -2447,7 +2359,7 @@ const Memberships: NextPage = () => {
               className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
             >
               <CalendarClock size={16} className="text-teal-600" />
-              Edit membership period
+              Change paid dates
             </button>
             <button
               onClick={() => openInviteModal([menuRow.id], false)}
@@ -2693,7 +2605,7 @@ const Memberships: NextPage = () => {
                   className="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
                 >
                   <CalendarClock size={16} className="text-teal-600" />
-                  Edit membership period
+                  Change paid dates
                 </button>
                 <button
                   onClick={() => openInviteModal([detailRow.id], false)}
@@ -2913,53 +2825,24 @@ const Memberships: NextPage = () => {
                     </div>
                     <div>
                       <label
-                        htmlFor="payment-months"
+                        htmlFor="payment-method"
                         className="block text-sm font-medium text-gray-700 mb-1"
                       >
-                        Covers
+                        Method
                       </label>
                       <select
-                        id="payment-months"
-                        value={paymentMonths}
-                        onChange={(e) => setPaymentMonths(e.target.value)}
+                        id="payment-method"
+                        value={paymentMethod}
+                        onChange={(e) =>
+                          setPaymentMethod(e.target.value as PaymentMethod)
+                        }
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
                       >
-                        <option value="1">1 month</option>
-                        <option value="2">2 months (standard)</option>
-                        <option value="3">3 months</option>
-                        <option value="6">6 months</option>
-                        <option value="12">1 year</option>
+                        <option value="etransfer">E-transfer</option>
+                        <option value="cash">Cash</option>
+                        <option value="other">Other</option>
                       </select>
                     </div>
-                  </div>
-                  {paymentMonths !== "2" && (
-                    <p className="-mt-2 text-xs text-gray-500">
-                      The membership will be extended by{" "}
-                      <strong>
-                        {paymentMonths} month{paymentMonths === "1" ? "" : "s"}
-                      </strong>
-                      , not the usual 2.
-                    </p>
-                  )}
-                  <div>
-                    <label
-                      htmlFor="payment-method"
-                      className="block text-sm font-medium text-gray-700 mb-1"
-                    >
-                      Method
-                    </label>
-                    <select
-                      id="payment-method"
-                      value={paymentMethod}
-                      onChange={(e) =>
-                        setPaymentMethod(e.target.value as PaymentMethod)
-                      }
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
-                    >
-                      <option value="etransfer">E-transfer</option>
-                      <option value="cash">Cash</option>
-                      <option value="other">Other</option>
-                    </select>
                   </div>
                   <div>
                     <label
@@ -2973,16 +2856,7 @@ const Memberships: NextPage = () => {
                       type="date"
                       value={paymentPaidAt}
                       max={todayInputValue()}
-                      onChange={(e) => {
-                        setPaymentPaidAt(e.target.value);
-                        // Today's payment has nothing to catch up on, so the
-                        // tick box disappears — clear it rather than leave it
-                        // set behind the scenes.
-                        const days = daysFromToday(e.target.value);
-                        if (days === null || days >= 0) {
-                          setStartFromPaymentDate(false);
-                        }
-                      }}
+                      onChange={(e) => setPaymentPaidAt(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                     />
                     <p className="text-xs text-gray-500 mt-1">
@@ -2995,28 +2869,20 @@ const Memberships: NextPage = () => {
                       </p>
                     )}
                   </div>
-                  {isPaidAtInPast && (
-                    <div>
-                      <label
-                        htmlFor="payment-start-from"
-                        className="flex items-start gap-3 text-sm text-gray-800"
-                      >
-                        <input
-                          id="payment-start-from"
-                          type="checkbox"
-                          checked={startFromPaymentDate}
-                          onChange={(e) =>
-                            setStartFromPaymentDate(e.target.checked)
-                          }
-                          className="w-4 h-4 accent-[#E43125] mt-0.5"
-                        />
-                        <span className="font-medium">
-                          Start the membership period from this date (use for
-                          catching up on old payments)
-                        </span>
-                      </label>
-                    </div>
-                  )}
+                  <div className="border-t border-gray-100 pt-4">
+                    <PaidPeriodPicker
+                      key={`pay-${modalRow.id}`}
+                      start={periodStart}
+                      end={periodEnd}
+                      onChange={(start, end) => {
+                        setPeriodStart(start);
+                        setPeriodEnd(end);
+                      }}
+                      currentStart={modalRow.currentSubscriptionStartDate}
+                      currentEnd={modalRow.currentSubscriptionEndDate}
+                      received={paymentPaidAt}
+                    />
+                  </div>
                   <div>
                     <label
                       htmlFor="payment-period-label"
@@ -3054,35 +2920,6 @@ const Memberships: NextPage = () => {
                       placeholder="e.g. reference number"
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                     />
-                  </div>
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700">
-                    {(() => {
-                      const newEnd = computeNewEndDate(
-                        modalRow.currentSubscriptionEndDate,
-                        {
-                          paidAt: paymentPaidAt,
-                          months: parseInt(paymentMonths, 10) || 2,
-                          startFromPaymentDate:
-                            isPaidAtInPast && startFromPaymentDate,
-                        }
-                      );
-                      if (!newEnd) {
-                        return "Choose a date received to see the new end date.";
-                      }
-                      return (
-                        <>
-                          New end date:{" "}
-                          <span className="font-medium">
-                            {newEnd.toLocaleDateString("en-US", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            })}
-                          </span>{" "}
-                          <span className="text-gray-500">(+2 months)</span>
-                        </>
-                      );
-                    })()}
                   </div>
                 </div>
               </>
@@ -3229,9 +3066,7 @@ const Memberships: NextPage = () => {
 
             {modal.type === "set-renewal" && (
               <>
-                <h2 className="text-lg font-bold mb-1">
-                  Edit membership period
-                </h2>
+                <h2 className="text-lg font-bold mb-1">Change paid dates</h2>
                 <p className="text-gray-500 text-sm mb-4">
                   {modalRow.fullname || "Unknown player"}
                   {modalRow.parent_name
@@ -3240,90 +3075,23 @@ const Memberships: NextPage = () => {
                 </p>
                 <div className="space-y-4">
                   <p className="text-sm text-gray-600">
-                    Use this when a family paid you by cash or e-transfer
-                    outside the dashboard, or when their dates got mixed up. It
-                    only corrects their dates — it does not record money.
+                    Fix the dates only — no money is recorded and no email is
+                    sent. To log money that arrived, use{" "}
+                    <span className="font-medium">Record payment</span>{" "}
+                    instead; it sets the dates too.
                   </p>
-                  <div>
-                    <label
-                      htmlFor="renewal-start-date"
-                      className="block text-sm font-medium text-gray-700 mb-1"
-                    >
-                      Paid from (optional)
-                    </label>
-                    <input
-                      id="renewal-start-date"
-                      type="date"
-                      value={renewalStartDate}
-                      onChange={(e) => setRenewalStartDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      {formatDate(modalRow.currentSubscriptionStartDate) === "—"
-                        ? "Leave blank if you don't know when the period started."
-                        : `Currently ${formatDate(
-                            modalRow.currentSubscriptionStartDate
-                          )}.`}
-                    </p>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="renewal-date"
-                      className="block text-sm font-medium text-gray-700 mb-1"
-                    >
-                      Paid until (renewal date)
-                    </label>
-                    <input
-                      id="renewal-date"
-                      type="date"
-                      value={renewalDate}
-                      onChange={(e) => setRenewalDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Currently{" "}
-                      {formatDate(modalRow.currentSubscriptionEndDate) === "—"
-                        ? "not set"
-                        : formatDate(modalRow.currentSubscriptionEndDate)}
-                      .
-                    </p>
-                  </div>
-                  <fieldset>
-                    <legend className="block text-sm font-medium text-gray-700 mb-1">
-                      How long did they pay for?
-                    </legend>
-                    <div className="flex flex-wrap gap-2">
-                      {PERIOD_PRESETS.map((preset) => (
-                        <button
-                          key={preset.months}
-                          type="button"
-                          onClick={() => applyPeriodPreset(preset.months)}
-                          className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50"
-                        >
-                          {preset.label}
-                        </button>
-                      ))}
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Sets &quot;Paid until&quot; from{" "}
-                      {renewalStart
-                        ? formatInputDate(renewalStartDate)
-                        : "today"}
-                      .
-                    </p>
-                  </fieldset>
-                  {isPeriodBackwards && (
-                    <div
-                      role="alert"
-                      className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-                    >
-                      <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-                      <span>
-                        The period cannot start after it ends. Please check the
-                        dates.
-                      </span>
-                    </div>
-                  )}
+                  <PaidPeriodPicker
+                    key={`renew-${modalRow.id}`}
+                    start={renewalStartDate}
+                    end={renewalDate}
+                    onChange={(start, end) => {
+                      setRenewalStartDate(start);
+                      setRenewalDate(end);
+                    }}
+                    currentStart={modalRow.currentSubscriptionStartDate}
+                    currentEnd={modalRow.currentSubscriptionEndDate}
+                    startOptional
+                  />
                   <div>
                     <label
                       htmlFor="renewal-note"
@@ -3339,12 +3107,6 @@ const Memberships: NextPage = () => {
                       placeholder="e.g. paid $380 cash at practice"
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                     />
-                  </div>
-                  <div
-                    aria-live="polite"
-                    className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700"
-                  >
-                    {renewalPreview()}
                   </div>
                 </div>
               </>
@@ -3471,7 +3233,8 @@ const Memberships: NextPage = () => {
                 onClick={handleModalSubmit}
                 disabled={
                   isSubmitting ||
-                  (modal.type === "set-renewal" && !canSaveRenewal)
+                  (modal.type === "set-renewal" && !canSaveRenewal) ||
+                  (modal.type === "record-payment" && !canSavePayment)
                 }
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed bg-[#E43125] hover:bg-[#c9281e]"
               >

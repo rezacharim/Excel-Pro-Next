@@ -4,6 +4,9 @@ import { contactFaqData } from "@/data/faq";
 
 const SITE_URL = "https://www.excelproso.com";
 
+// Re-built hourly so the season wording ("starts…" / "under way") stays current.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: "Contact Us | Excel Pro Soccer Academy Markham",
   description:

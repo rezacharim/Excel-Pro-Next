@@ -1,6 +1,11 @@
 import Programs from '@/components/organisms/Programs/Programs';
 import { PRICING } from '@/data/programs';
-import { CURRENT_SEASON, REGISTER_PATH, VENUE } from '@/data/academy';
+import {
+  CURRENT_SEASON,
+  REGISTER_PATH,
+  VENUE,
+  seasonTimingText,
+} from '@/data/academy';
 import Link from 'next/link';
 import React from 'react'
 
@@ -22,8 +27,8 @@ const Program = () => {
             E-transfer accepted
           </p>
           <p className="mt-4 pt-4 border-t border-gray-100 text-gray-800 text-sm sm:text-base">
-            <span className="font-semibold">{CURRENT_SEASON.name}</span> starts{" "}
-            <span className="font-semibold">{CURRENT_SEASON.startsOn}</span> ·
+            <span className="font-semibold">{CURRENT_SEASON.name}</span>{" "}
+            {seasonTimingText()} ·
             two sessions a week for every age group at{" "}
             <a
               href={VENUE.mapsUrl}

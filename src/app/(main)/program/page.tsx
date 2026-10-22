@@ -6,7 +6,11 @@ import {
   AGE_RANGE,
   CURRENT_SEASON,
   VENUE,
+  seasonTimingText,
 } from "@/data/academy";
+
+// Re-built hourly so "starts October 5" turns into "under way" on its own.
+export const revalidate = 3600;
 
 const SITE_URL = "https://www.excelproso.com";
 
@@ -14,7 +18,7 @@ const SITE_URL = "https://www.excelproso.com";
 const TITLE = `Youth Soccer Programs, Ages ${AGE_RANGE.short} | ${VENUE.name} | Excel Pro`;
 const DESCRIPTION = `Youth soccer programs for ages ${AGE_RANGE.short}: ${ACADEMY_GROUPS.map(
   (g) => g.key
-).join(", ")}. Twice a week at ${VENUE.name}, ${CURRENT_SEASON.name} starts ${CURRENT_SEASON.startsOn}. ${PRICING.price} per ${PRICING.term}.`;
+).join(", ")}. Twice a week at ${VENUE.name}, ${CURRENT_SEASON.name} ${seasonTimingText()}. ${PRICING.price} per ${PRICING.term}.`;
 
 export const metadata: Metadata = {
   title: TITLE,

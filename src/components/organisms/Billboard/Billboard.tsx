@@ -7,6 +7,7 @@ import ArrowButton from "../../atoms/ArrowButton/ArrowButton";
 import { usePlayers } from "@/context/PlayerContext/PlayerContext";
 import Link from "next/link";
 import { fetchAllImages } from "@/services/getAllImages";
+import { SEASONS } from "@/data/academy";
 
 interface HeroSlide {
   id: string;
@@ -144,6 +145,68 @@ const leagueUrgency = async (): Promise<string[]> => {
   }
 };
 
+interface IndoorSeason {
+  name: string | null;
+  registrationOpen: boolean;
+  startsOn: string | null;
+  depositAmount: number | null;
+  ageGroups: SeasonAgeGroup[];
+}
+
+const longDay = (iso: string) =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString("en-CA", {
+    month: "long",
+    day: "numeric",
+  });
+
+/**
+ * A hero slide for the indoor season, built from the live season record
+ * rather than an announcement — so it can never be left saying "starts
+ * October 5" after October 5. Before the first session it invites families to
+ * reserve; afterwards it says the season is on and new players are welcome.
+ * Disappears when indoor registration is switched off in the dashboard.
+ */
+const indoorSlide = async (): Promise<HeroSlide | null> => {
+  const api = process.env.NEXT_PUBLIC_API_URL;
+  if (!api) return null;
+  try {
+    const response = await fetch(`${api}/league/season/indoor`);
+    if (!response.ok) return null;
+    const season: IndoorSeason = await response.json();
+    if (!season?.registrationOpen) return null;
+
+    const started =
+      !!season.startsOn &&
+      Date.now() >= new Date(`${season.startsOn}T00:00:00`).getTime();
+
+    const urgency: string[] = [];
+    const tight = (season.ageGroups ?? [])
+      .filter((g) => g.show && (g.tone === "low" || g.tone === "full"))
+      .sort((a, b) => a.spotsLeft - b.spotsLeft)[0];
+    if (tight) urgency.push(`${tight.ageGroup}: ${tight.label.toLowerCase()}`);
+
+    return {
+      id: "promo-indoor",
+      image_url: "/images/billboard/Banner3.webp",
+      title: season.name ?? "Indoor Season",
+      href: "/indoor",
+      badge: started ? "Indoor Season · On now" : "Indoor Season",
+      headline: started
+        ? "The indoor season is on — it's not too late to join"
+        : `${season.name ?? "Indoor Season"} starts ${
+            season.startsOn ? longDay(season.startsOn) : "soon"
+          }`,
+      subtext: started
+        ? `Two sessions a week at ${SEASONS.indoor.venue.name}, ages 6 to 18. New players can start any week while spaces last.`
+        : `Two sessions a week at ${SEASONS.indoor.venue.name}, ages 6 to 18. Spaces are limited in each age group.`,
+      ctaLabel: started ? "Join the indoor season" : "Reserve a spot",
+      urgency,
+    };
+  } catch {
+    return null;
+  }
+};
+
 const firstLine = (body: string, max = 110): string => {
   const line = (body ?? "").split(/\n\s*\n/)[0].replace(/\s+/g, " ").trim();
   return line.length > max ? `${line.slice(0, max).trimEnd()}…` : line;
@@ -221,7 +284,7 @@ const FALLBACK: HeroSlide[] = [
 
 const ROTATE_MS = 5000;
 const MAX_PHOTO_SLIDES = 10;
-const MAX_PROMO_SLIDES = 3;
+const MAX_PROMO_SLIDES = 4;
 
 /**
  * Home-page hero slideshow.
@@ -307,7 +370,16 @@ const Billboard = () => {
             title: g.title,
           })
         );
-      const promos = (await buildPromoSlides()).slice(0, MAX_PROMO_SLIDES);
+      // The indoor slide leads while indoor registration is open: it is the
+      // programme parents can actually join right now.
+      const [indoor, announced] = await Promise.all([
+        indoorSlide(),
+        buildPromoSlides(),
+      ]);
+      const promos = [...(indoor ? [indoor] : []), ...announced].slice(
+        0,
+        MAX_PROMO_SLIDES
+      );
       if (cancelled) return;
 
       // Registration and the newest story lead, then the photos. The two

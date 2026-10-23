@@ -77,6 +77,32 @@ export const isRegistrationPost = (post: {
 };
 
 /**
+ * A registration notice that a live page now does better.
+ *
+ * Indoor registration, trials and the Winter League each have their own page
+ * that reads current dates and prices, and the home page and News page show
+ * those directly. The old notices for them ("Indoor Season Starts October 5 -
+ * Reserve by September 20", "Open Trials through September", "Winter League -
+ * Registration Now Open") kept running after their dates had passed and sent
+ * parents to the wrong forms. They are left out of the public lists; their own
+ * pages still open from an old link. A new notice about anything else — a
+ * camp, a tournament — still shows as usual.
+ */
+export const isSupersededNotice = (
+  post: {
+    category?: string | null;
+    ctaLabel?: string | null;
+    ctaUrl?: string | null;
+  },
+  leagueOpen: boolean
+): boolean => {
+  if (!isRegistrationPost(post)) return false;
+  if (post.category === "trial") return true;
+  if (post.category === "league") return !leagueOpen;
+  return /\/(indoor|register|league|trials)\b/i.test(post.ctaUrl ?? "");
+};
+
+/**
  * The text to render on a post's own page.
  *
  * Prefers the long-form story, falls back to the short body. Without the
@@ -133,7 +159,14 @@ export const CATEGORY_LABELS: Record<PostCategory, string> = {
 /** A date a parent reads at a glance, not an ISO string. */
 export const formatPostDate = (value?: string | null): string => {
   if (!value) return "";
-  const date = new Date(value);
+  // A match date is a plain "2026-10-02". new Date() reads that as midnight
+  // UTC — the evening of October 1 in Toronto — so the News page showed every
+  // match one day early while the home page (rendered on the server, in UTC)
+  // showed the right day. Read a plain date as that calendar day, locally.
+  const plain = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const date = plain
+    ? new Date(Number(plain[1]), Number(plain[2]) - 1, Number(plain[3]))
+    : new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleDateString("en-CA", {
     year: "numeric",

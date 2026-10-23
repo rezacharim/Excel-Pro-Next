@@ -7,7 +7,12 @@ import ArrowButton from "../../atoms/ArrowButton/ArrowButton";
 import { usePlayers } from "@/context/PlayerContext/PlayerContext";
 import Link from "next/link";
 import { fetchAllImages } from "@/services/getAllImages";
-import { SEASONS } from "@/data/academy";
+import {
+  IMODEL,
+  SEASONS,
+  TRIALS_PATH,
+  WINTER_LEAGUE_OPEN,
+} from "@/data/academy";
 
 interface HeroSlide {
   id: string;
@@ -207,6 +212,22 @@ const indoorSlide = async (): Promise<HeroSlide | null> => {
   }
 };
 
+/** I-Model trials, while they are open. Written here, so never stale. */
+const imodelSlide = (): HeroSlide | null =>
+  IMODEL.open
+    ? {
+        id: "promo-imodel",
+        image_url: "/images/billboard/teams.webp",
+        title: `${IMODEL.name} trials`,
+        href: `${TRIALS_PATH}?for=imodel`,
+        badge: `Trials · ${IMODEL.agesText}`,
+        headline: `${IMODEL.name} trials are open — ${IMODEL.agesText}`,
+        subtext: `A selected squad, trained all winter at ${SEASONS.indoor.venue.name} for the ${IMODEL.league}. The trial session is free.`,
+        ctaLabel: "Book a trial",
+        urgency: [],
+      }
+    : null;
+
 const firstLine = (body: string, max = 110): string => {
   const line = (body ?? "").split(/\n\s*\n/)[0].replace(/\s+/g, " ").trim();
   return line.length > max ? `${line.slice(0, max).trimEnd()}…` : line;
@@ -244,9 +265,12 @@ const buildPromoSlides = async (): Promise<HeroSlide[]> => {
     // League and trials each get their own slide rather than competing for one,
     // so the hero cycles registration -> trials -> latest story instead of
     // always showing whichever of the two happened to be posted last.
+    // Registration and trials now have their own live slides (indoor,
+    // I-Model trials, built below from the season record and academy.ts),
+    // which cannot go out of date. Only a league notice is still taken from
+    // the posts, and only while the Winter League is open.
     const chosen = [
-      pick(["league"]),
-      pick(["trial"]),
+      WINTER_LEAGUE_OPEN ? pick(["league"]) : undefined,
       pick(STORY_CATEGORIES),
     ].filter(Boolean) as PromoPost[];
 
@@ -376,7 +400,12 @@ const Billboard = () => {
         indoorSlide(),
         buildPromoSlides(),
       ]);
-      const promos = [...(indoor ? [indoor] : []), ...announced].slice(
+      const imodel = imodelSlide();
+      const promos = [
+        ...(indoor ? [indoor] : []),
+        ...(imodel ? [imodel] : []),
+        ...announced,
+      ].slice(
         0,
         MAX_PROMO_SLIDES
       );

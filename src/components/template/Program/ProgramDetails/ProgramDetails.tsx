@@ -8,6 +8,7 @@ import { AnimatedSection } from "@/components/atoms/AnimatedSection/AnimatedSect
 import FixedRegisterButton from "@/components/atoms/FixedRegisterButton/FixedRegisterButton";
 import { CalendarIcon, TrophyIcon, BadgeDollarSignIcon } from "lucide-react";
 import { PRICING } from "@/data/programs";
+import { CURRENT_SEASON } from "@/data/academy";
 
 interface ProgramType {
   decodedSlug: string;
@@ -166,6 +167,11 @@ const ProgramDetails: NextPage<ProgramType> = ({ program, decodedSlug }) => {
                 </div>
                 <p className="text-sm text-gray-600">
                   {PRICING.registrationFeeLine}
+                  {CURRENT_SEASON.joinLine && (
+                    <span className="mt-2 block rounded-md bg-red-50 px-3 py-2 text-gray-800">
+                      {CURRENT_SEASON.joinLine}
+                    </span>
+                  )}
                   <span className="block text-primary font-medium mt-1">
                     E-transfer accepted
                   </span>

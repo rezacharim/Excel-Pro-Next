@@ -9,6 +9,7 @@ import {
   CalendarClock,
   CalendarPlus,
   CheckCircle2,
+  Heart,
   ChevronDown,
   ChevronUp,
   Download,
@@ -62,6 +63,7 @@ import {
   UpdateNotesDto,
 } from "./types";
 import { rowsToPlayers } from "./importPlayers";
+import InviteBackDialog from "./InviteBackDialog";
 import PaidPeriodPicker, {
   approxMonths,
   dayOf,
@@ -430,6 +432,8 @@ const Memberships: NextPage = () => {
 
   // Tick-box selection for the bulk actions bar.
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  // "Invite back for a free session" — the ids it was opened for.
+  const [inviteBackIds, setInviteBackIds] = useState<number[] | null>(null);
   const [bulkModal, setBulkModal] = useState<BulkModalType | null>(null);
   const [bulkPlan, setBulkPlan] = useState<PlanValue>("U9_U12");
   // Bulk "Set paid period" — for families who paid on paper / outside the site.
@@ -2298,6 +2302,14 @@ const Memberships: NextPage = () => {
                 Invite to sign up
               </button>
               <button
+                onClick={() => setInviteBackIds(selectedIds)}
+                disabled={isBulkSubmitting}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20 transition-colors text-sm font-medium disabled:opacity-60"
+              >
+                <Heart size={16} />
+                Invite back (free session)
+              </button>
+              <button
                 onClick={() => {
                   setBulkPlan("U9_U12");
                   setBulkModal("set-plan");
@@ -2367,6 +2379,16 @@ const Memberships: NextPage = () => {
             >
               <Send size={16} className="text-blue-600" />
               Invite to sign up
+            </button>
+            <button
+              onClick={() => {
+                closeRowMenu();
+                setInviteBackIds([menuRow.id]);
+              }}
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <Heart size={16} className="text-[#E43125]" />
+              Invite back (free session)
             </button>
             <button
               onClick={() => openModal("set-plan", menuRow)}
@@ -3912,6 +3934,23 @@ const Memberships: NextPage = () => {
             )}
           </div>
         </div>
+      )}
+
+      {inviteBackIds && (
+        <InviteBackDialog
+          ids={inviteBackIds}
+          names={rows
+            .filter((r) => inviteBackIds.includes(r.id))
+            .map((r) => r.fullname || "Unknown player")}
+          token={savedToken}
+          onClose={() => setInviteBackIds(null)}
+          onDone={(message) => {
+            setInviteBackIds(null);
+            clearSelection();
+            showToast("success", message);
+            fetchOverview();
+          }}
+        />
       )}
 
       {/* Toast */}

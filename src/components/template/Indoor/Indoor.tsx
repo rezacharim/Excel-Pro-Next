@@ -9,7 +9,13 @@ import {
   type LeagueSeason,
   type PublicRegisterPayload,
 } from "@/services/league";
-import { SEASONS, groupByKey } from "@/data/academy";
+import {
+  FREE_SESSION,
+  IMODEL,
+  SEASONS,
+  TRIALS_PATH,
+  groupByKey,
+} from "@/data/academy";
 
 // This page is always the indoor season, whichever season the rest of the
 // site is currently showing.
@@ -356,7 +362,29 @@ const Indoor = () => {
             >
               Start registration
             </button>
-            <p className="mt-4 text-sm text-gray-500">
+            {FREE_SESSION.open && (
+              <p className="mt-4 text-sm text-gray-600">
+                Not sure yet?{" "}
+                <Link
+                  href={`${TRIALS_PATH}?for=free`}
+                  className="font-semibold text-[#E43125] underline"
+                >
+                  Try a free session first
+                </Link>
+                {IMODEL.open && (
+                  <>
+                    {" "}·{" "}
+                    <Link
+                      href={`${TRIALS_PATH}?for=imodel`}
+                      className="font-semibold text-[#E43125] underline"
+                    >
+                      {IMODEL.name} trials ({IMODEL.agesText})
+                    </Link>
+                  </>
+                )}
+              </p>
+            )}
+            <p className="mt-2 text-sm text-gray-500">
               Already have an account?{" "}
               <Link href="/account" className="text-[#E43125] underline">
                 Sign in to your dashboard

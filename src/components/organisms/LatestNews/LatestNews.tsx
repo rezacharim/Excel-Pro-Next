@@ -1,7 +1,12 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import NewsSlider, { type NewsCard } from "./NewsSlider";
-import { isRegistrationPost } from "@/services/news";
+import {
+  formatPostDate,
+  isRegistrationPost,
+  isSupersededNotice,
+} from "@/services/news";
+import { WINTER_LEAGUE_OPEN } from "@/data/academy";
 import { getSiteText } from "@/services/siteText";
 
 const API = process.env.NEXT_PUBLIC_API_URL;
@@ -77,12 +82,8 @@ const excerpt = (body: string, max = 150) => {
   return first.length > max ? `${first.slice(0, max).trimEnd()}…` : first;
 };
 
-const formatDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-CA", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
+/** Same day on every page — see formatPostDate. */
+const formatDate = (iso: string) => formatPostDate(iso);
 
 /** A post earns its own page once it has a full story or photos. */
 const hasFullPost = (a: Announcement): boolean =>
@@ -139,7 +140,10 @@ const LatestNews = async ({
   // If there are no stories yet, fall back to everything rather than render
   // an empty section.
   const stories = all.filter((a) => !isRegistrationPost(a));
-  const pool = stories.length > 0 ? stories : all;
+  const pool =
+    stories.length > 0
+      ? stories
+      : all.filter((a) => !isSupersededNotice(a, WINTER_LEAGUE_OPEN));
 
   const items: NewsCard[] = [...pool]
     .sort(

@@ -4,6 +4,10 @@ import {
   CURRENT_SEASON,
   REGISTER_PATH,
   VENUE,
+  FREE_SESSION,
+  IMODEL,
+  TRIALS_PATH,
+  seasonHasStarted,
   seasonTimingText,
 } from '@/data/academy';
 import Link from 'next/link';
@@ -23,6 +27,11 @@ const Program = () => {
           <p className="mt-2 text-gray-600 text-sm">
             {PRICING.registrationFeeLine}
           </p>
+          {CURRENT_SEASON.joinLine && (
+            <p className="mx-auto mt-3 max-w-3xl rounded-lg bg-red-50 px-4 py-2 text-sm text-gray-800">
+              {CURRENT_SEASON.joinLine}
+            </p>
+          )}
           <p className="mt-1 text-primary text-sm font-medium">
             E-transfer accepted
           </p>
@@ -44,8 +53,24 @@ const Program = () => {
             href={REGISTER_PATH}
             className="mt-4 inline-block rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white"
           >
-            Reserve a spot
+            {seasonHasStarted() ? "Join the season" : "Reserve a spot"}
           </Link>
+          {FREE_SESSION.open && (
+            <p className="mt-3 text-sm text-gray-600">
+              Not sure yet?{" "}
+              <Link href={`${TRIALS_PATH}?for=free`} className="font-semibold text-primary underline">
+                Try a free session first
+              </Link>
+              {IMODEL.open && (
+                <>
+                  {" "}·{" "}
+                  <Link href={`${TRIALS_PATH}?for=imodel`} className="font-semibold text-primary underline">
+                    {IMODEL.name} trials ({IMODEL.agesText})
+                  </Link>
+                </>
+              )}
+            </p>
+          )}
         </div>
         <Programs />
     </section>

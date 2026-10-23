@@ -2,16 +2,16 @@ import type { Metadata } from "next";
 import League from "@/components/template/League/League";
 
 export const metadata: Metadata = {
-  title: "Winter League Registration U9–U16 | Excel Pro Soccer Academy",
+  title: "Winter League U9–U16 | Excel Pro Soccer Academy",
   description:
-    "Register for the Excel Pro Soccer Academy Winter League season — U9 to U16, Ontario PISL and York Region Soccer League. Season starts mid-October. Roster spots are limited.",
+    "Register for the Excel Pro Soccer Academy Winter League season — U9 to U16, Ontario PISL and York Region Soccer League. Registration for the current season is closed. Registered families can sign in here to see their balance.",
   alternates: {
     canonical: "https://www.excelproso.com/league",
   },
   openGraph: {
-    title: "Winter League Registration U9–U16 | Excel Pro Soccer Academy",
+    title: "Winter League U9–U16 | Excel Pro Soccer Academy",
     description:
-      "Registration is open for U9–U16. Ontario PISL & YRSL, season starts mid-October. Roster spots are limited and confirmed on payment.",
+      "Ontario PISL & YRSL for U9–U16. Registration for the current season is closed. Registered families can sign in here to see their balance.",
     type: "website",
     url: "https://www.excelproso.com/league",
     siteName: "Excel Pro Soccer Academy",

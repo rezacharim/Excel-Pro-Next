@@ -17,6 +17,9 @@ import {
 } from "@/services/portal";
 
 import BankLinks from "@/components/molecules/BankLinks/BankLinks";
+// During the indoor season a new player joins through /indoor (the season
+// roster and the $835 joining fee); /register only creates a membership.
+import { REGISTER_PATH } from "@/data/academy";
 
 const PAY_TO_EMAIL = "Excelpro.Etransfer@gmail.com";
 
@@ -927,7 +930,7 @@ const Account = () => {
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <Link
-                  href="/register"
+                  href={REGISTER_PATH}
                   className="px-4 py-2 text-sm font-semibold bg-primary hover:bg-[#c9281e] text-white rounded-md transition-colors"
                 >
                   + Add another player
@@ -961,7 +964,7 @@ const Account = () => {
                   you won&apos;t need another sign-in code.
                 </p>
                 <Link
-                  href="/register"
+                  href={REGISTER_PATH}
                   className="mt-5 inline-block px-6 py-3 bg-primary hover:bg-[#c9281e] text-white rounded-md font-semibold transition-colors"
                 >
                   Register a player

@@ -6,6 +6,9 @@ import { Button } from "../../atoms/Button/Button";
 import Menu from "../../molecules/Menu/Menu";
 import TopBar from "@/components/molecules/TopBar/TobBar";
 import IndoorBanner from "@/components/molecules/IndoorBanner/IndoorBanner";
+// "Enroll now" goes straight to this season's registration (/indoor now,
+// /register in the outdoor season) instead of the program list.
+import { REGISTER_PATH } from "@/data/academy";
 
 // Animation variants
 import { menuVariants } from "./motions/menu.variant";
@@ -64,7 +67,7 @@ const Header = () => {
             <div className="flex-1 flex justify-end">
               <Button
                 className="rounded-xl"
-                onClick={() => router.push("/program")}
+                onClick={() => router.push(REGISTER_PATH)}
               >
                 Enroll now
               </Button>
@@ -88,7 +91,7 @@ const Header = () => {
             >
               <Button
                 className="rounded-xl"
-                onClick={() => router.push("/program")}
+                onClick={() => router.push(REGISTER_PATH)}
               >
                 Enroll now
               </Button>
@@ -174,7 +177,7 @@ const Header = () => {
                       className="rounded-xl w-full mt-5"
                       onClick={() => {
                         toggleMenu();
-                        router.push("/program")
+                        router.push(REGISTER_PATH)
                       }}
                     >
                       Enroll now

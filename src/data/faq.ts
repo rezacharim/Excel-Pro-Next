@@ -21,26 +21,26 @@ export const contactFaqData: FAQEntry[] = [
   },
   {
     id: 2,
-    question: "Do I need prior football experience to join the academy?",
+    question: "Does my child need soccer experience to join?",
     answer:
       "No prior experience is necessary. We welcome players of all skill levels, from beginners to advanced, and our coaches will help develop your skills accordingly.",
   },
   {
     id: 3,
-    question: "How can I register for a training program or tournament?",
+    question: "How do I register my child?",
     answer:
-      "You can register through our online portal on the website, visit our facility during office hours, or contact our registration team via phone or email.",
+      "Register online — the Enroll now button on any page takes you to this season's form, and it takes about three minutes. New players are welcome during the season while spaces last. You can also call +1 647-703-7821 or email excelprosocceracademy@gmail.com and we will register your child for you.",
   },
   {
     id: 4,
     question: "Are the coaches certified and experienced?",
     answer:
-      "Yes, all our coaches hold relevant certifications from recognized football associations and have extensive experience in coaching youth football at various levels.",
+      "Yes, all our coaches hold relevant certifications from recognized soccer associations and have extensive experience coaching youth soccer at various levels.",
   },
   {
     id: 5,
     question: "What equipment do I need to bring for training sessions?",
     answer:
-      "Players should bring football boots, shin guards, water bottle, and comfortable training attire. Training bibs and balls are provided by the academy.",
+      "Players should bring soccer cleats, shin guards, water bottle, and comfortable training attire. Training bibs and balls are provided by the academy.",
   },
 ];

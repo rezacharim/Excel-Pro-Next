@@ -4,7 +4,13 @@ import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { RefreshCw, XCircle, ArrowRight, ChevronDown } from "lucide-react";
-import { isRegistrationPost } from "@/services/news";
+import {
+  formatPostDate,
+  isRegistrationPost,
+  isSupersededNotice,
+} from "@/services/news";
+import { WINTER_LEAGUE_OPEN } from "@/data/academy";
+import LiveOpenings from "./LiveOpenings";
 import Story from "@/components/molecules/Story/Story";
 
 export type AnnouncementCategory =
@@ -73,15 +79,8 @@ const FALLBACK_IMAGE: Record<AnnouncementCategory, string> = {
   interview: "/images/billboard/Banner3.webp",
 };
 
-const formatDate = (iso: string): string => {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-};
+/** Same day on every page — see formatPostDate. */
+const formatDate = (iso: string): string => formatPostDate(iso);
 
 /**
  * The first real sentence or two, never the whole post.
@@ -388,12 +387,16 @@ const Announcements = () => {
 
   const actions = announcements
     .filter(isAction)
+    .filter((a) => !isSupersededNotice(a, WINTER_LEAGUE_OPEN))
     .sort(
       (a, b) =>
         (ACTION_ORDER[a.category] ?? 2) - (ACTION_ORDER[b.category] ?? 2) ||
         newest(a, b)
     );
-  const news = announcements.filter((a) => !isAction(a)).sort(newest);
+  const news = announcements
+    .filter((a) => !isAction(a))
+    .filter((a) => !isSupersededNotice(a, WINTER_LEAGUE_OPEN))
+    .sort(newest);
 
   return (
     <section className="bg-gray-50">
@@ -450,19 +453,20 @@ const Announcements = () => {
         ) : (
           <>
             {/* ------------------------------------------- open right now */}
-            {actions.length > 0 && (
-              <div className="-mt-8">
-                <div className="space-y-3">
-                  {actions.map((a) => (
-                    <ActionRow key={a.id} announcement={a} />
-                  ))}
-                </div>
+            {/* Indoor and trials come from the live pages, so they are always
+                current; any other registration notice follows them. */}
+            <div className="-mt-8">
+              <div className="space-y-3">
+                <LiveOpenings />
+                {actions.map((a) => (
+                  <ActionRow key={a.id} announcement={a} />
+                ))}
               </div>
-            )}
+            </div>
 
             {/* -------------------------------------------------- the news */}
             {news.length > 0 && (
-              <div className={actions.length > 0 ? "mt-14" : "mt-10"}>
+              <div className="mt-14">
                 <div className="mb-6 flex items-end justify-between gap-3">
                   <h2 className="text-2xl font-bold text-[#020022]">
                     Latest news

@@ -70,6 +70,13 @@ export interface Season {
   sessions: Record<string, Session[]>;
   /** False until Reza has confirmed this block for the coming season. */
   confirmed: boolean;
+  /**
+   * What a family pays to join this season, shown under the $380 / 2 months
+   * price on /program. Without it a new parent read "$380 + $75 uniform" there
+   * and then met $835 on the registration page. Leave out when it is simply
+   * the regular fee.
+   */
+  joinLine?: string;
 }
 
 export const SEASONS: Record<SeasonKey, Season> = {
@@ -80,6 +87,10 @@ export const SEASONS: Record<SeasonKey, Season> = {
     startsOnIso: "2026-10-05",
     registerPath: "/indoor",
     confirmed: true,
+    // Confirmed by Reza 2026-10-21: the same at any point in the season, paid
+    // in full before the player's first session.
+    joinLine:
+      "Joining the indoor season as a new player: $835 — first 2 months $380 + March & April $380 + uniform $75, paid before the first session. Already training with us: $380 for March & April.",
     venue: {
       name: "Richmond Hill Green Dome",
       street: "1300 Elgin Mills Rd E",
@@ -265,3 +276,41 @@ export const planForAge = (age: number): PlanKey => {
   if (age <= 14) return "U13_U14";
   return "U15_U18";
 };
+
+// ---------------------------------------------------------------------------
+// Programs that sit on top of the season.
+
+/**
+ * Winter League (PISL / YRSL, /league). Off from 2026-10-23 at Reza's request:
+ * /league stops taking new players (families already registered can still
+ * sign in there to see and pay their balance), and the league slide, the
+ * league notices and every "Register for Winter League" link come off the
+ * public site. Set to true for the next league season.
+ */
+export const WINTER_LEAGUE_OPEN = false;
+
+/**
+ * I-Model team: a selective group, U13 to U16, trained through the winter at
+ * the Green Dome to compete in the summer I-Model League. Trialists join a
+ * regular indoor session of their age group, free, and coaches select from
+ * there. Bookings go to Dashboard → Trials.
+ */
+export const IMODEL = {
+  open: true,
+  name: "I-Model Team",
+  league: "Summer I-Model League",
+  ages: ["U13", "U14", "U15", "U16"],
+  agesText: "U13 to U16",
+  /** Which indoor training group each I-Model age trains with. */
+  trainsWith: { U13: "U13-U14", U14: "U13-U14", U15: "U15-U18", U16: "U15-U18" } as Record<string, string>,
+} as const;
+
+/** A free first session at a regular training — any age the academy trains. */
+export const FREE_SESSION = { open: true } as const;
+
+/** Where both trial kinds are booked. */
+export const TRIALS_PATH = "/trials";
+
+/** The indoor sessions a trialist of this group could come to. */
+export const trialSessionsFor = (groupKey: string): Session[] =>
+  SEASONS.indoor.sessions[groupKey] ?? [];

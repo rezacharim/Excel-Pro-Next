@@ -12,6 +12,7 @@ import {
   type PortalLeagueOverview,
   type PortalLeaguePlayer,
 } from "@/services/league";
+import { WINTER_LEAGUE_OPEN, TRIALS_PATH, IMODEL } from "@/data/academy";
 import AgreementConsent, {
   EMPTY_AGREEMENT,
   isAgreementComplete,
@@ -139,6 +140,26 @@ const League = () => {
 
   const daysLeft = daysUntil(season?.firstPaymentDue ?? null);
 
+  // After the first game the page must stop saying "Season starts October
+  // 15" and quoting $450 instalments that were due in September — a family
+  // registering now is charged the late rate, split into two payments that
+  // are due straight away unless the 2nd payment date is still ahead. The
+  // page shows exactly what the server will charge.
+  const now = Date.now();
+  // Closed either in the dashboard or by the site-wide switch in
+  // src/data/academy.ts (off since 2026-10-23).
+  const closed =
+    !WINTER_LEAGUE_OPEN || (!!season && !season.registrationOpen);
+  const seasonStarted =
+    !!season?.startsOn &&
+    now >= new Date(`${season.startsOn}T00:00:00`).getTime();
+  const late = !!season?.isLateNow;
+  const lateTotal = season ? Math.max(season.feeTotal, season.feeLate) : 0;
+  const lateHalf = Math.round(lateTotal / 2);
+  const secondStillAhead =
+    !!season?.secondPaymentDue &&
+    new Date(`${season.secondPaymentDue}T23:59:59`).getTime() > now;
+
   return (
     <section className="bg-gray-50">
       {/* ---------------------------------------------------------- hero */}
@@ -148,16 +169,82 @@ const League = () => {
             Ontario PISL &amp; YRSL
           </p>
           <h1 className="text-3xl font-bold leading-tight sm:text-5xl">
-            {season?.name ?? "Winter League"} Registration
+            {season?.name ?? "Winter League"}
+            {closed ? "" : " Registration"}
           </h1>
-          <p className="mt-4 max-w-2xl text-lg text-gray-300">
-            Open for U9 to U16. Season starts{" "}
-            {season?.startsOn ? longDate(season.startsOn) : "mid-October"}.
-            Roster spots are limited and confirmed once the first payment is
-            received.
-          </p>
+          {closed ? (
+            <p className="mt-4 max-w-2xl text-lg text-gray-300">
+              Winter League registration is closed. Already registered? Sign in
+              below with your email to see your balance and receipts.
+              {IMODEL.open && (
+                <>
+                  {" "}
+                  Looking for competitive soccer for {IMODEL.agesText}?{" "}
+                  <Link
+                    href={`${TRIALS_PATH}?for=imodel`}
+                    className="font-semibold text-white underline"
+                  >
+                    Book a free {IMODEL.name} trial
+                  </Link>
+                  .
+                </>
+              )}
+            </p>
+          ) : seasonStarted ? (
+            <p className="mt-4 max-w-2xl text-lg text-gray-300">
+              <strong className="text-white">
+                The season is under way — late registrations are still
+                accepted.
+              </strong>{" "}
+              Games started {longDate(season!.startsOn)}. Open for U9 to U16
+              while roster spots remain in each age group; a spot is confirmed
+              once the first payment is received.
+            </p>
+          ) : (
+            <p className="mt-4 max-w-2xl text-lg text-gray-300">
+              Open for U9 to U16. Season starts{" "}
+              {season?.startsOn ? longDate(season.startsOn) : "mid-October"}.
+              Roster spots are limited and confirmed once the first payment is
+              received.
+            </p>
+          )}
 
-          {season && (
+          {season && !closed && late && (
+            <div className="mt-8 grid gap-4 sm:grid-cols-3">
+              <div className="rounded-xl bg-white/5 p-5 ring-1 ring-white/10">
+                <p className="text-xs uppercase tracking-wide text-gray-400">
+                  1st payment
+                </p>
+                <p className="mt-1 text-2xl font-bold">{money(lateHalf)}</p>
+                <p className="text-sm text-gray-400">due when you register</p>
+              </div>
+              <div className="rounded-xl bg-white/5 p-5 ring-1 ring-white/10">
+                <p className="text-xs uppercase tracking-wide text-gray-400">
+                  2nd payment
+                </p>
+                <p className="mt-1 text-2xl font-bold">
+                  {money(lateTotal - lateHalf)}
+                </p>
+                <p className="text-sm text-gray-400">
+                  {secondStillAhead
+                    ? `due ${longDate(season.secondPaymentDue)}`
+                    : "also due when you register"}
+                </p>
+              </div>
+              <div className="rounded-xl bg-[#E43125] p-5">
+                <p className="text-xs uppercase tracking-wide text-white/80">
+                  Total league fee
+                </p>
+                <p className="mt-1 text-2xl font-bold">{money(lateTotal)}</p>
+                <p className="text-sm text-white/80">
+                  late registration rate since{" "}
+                  {shortDate(season.lateFeeFrom ?? season.firstPaymentDue)}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {season && !closed && !late && (
             <div className="mt-8 grid gap-4 sm:grid-cols-3">
               <div className="rounded-xl bg-white/5 p-5 ring-1 ring-white/10">
                 <p className="text-xs uppercase tracking-wide text-gray-400">
@@ -235,10 +322,10 @@ const League = () => {
 
         {/* What the fee buys. The first question a parent asks about a $900
             youth season, and the one most likely to stall a decision. */}
-        {season?.paymentCoversNote && (
+        {!closed && season?.paymentCoversNote && (
           <div className="mb-10 rounded-xl border-l-4 border-[#E43125] bg-white p-6 shadow-sm">
             <h2 className="font-bold text-[#020022]">
-              What the {money(season.feeTotal)} covers
+              {late ? "What the league fee covers" : `What the ${money(season.feeTotal)} covers`}
             </h2>
             <p className="mt-2 whitespace-pre-line text-gray-700">
               {season.paymentCoversNote}
@@ -247,7 +334,7 @@ const League = () => {
         )}
 
         {/* ------------------------------------------------ spots per group */}
-        {season && season.ageGroups.some((g) => g.show) && (
+        {!closed && season && season.ageGroups.some((g) => g.show) && (
           <div className="mb-12">
             <h2 className="mb-4 text-xl font-bold text-[#020022]">
               Age groups
@@ -286,6 +373,7 @@ const League = () => {
             their child on the next screen. */}
         {overview ? (
           <ExistingFamily
+            closed={closed}
             overview={overview}
             token={token!}
             onDone={() => loadOverview(token!)}
@@ -298,6 +386,7 @@ const League = () => {
           />
         ) : (
           <SignIn
+            closed={closed}
             onSignedIn={(t, email) => {
               localStorage.setItem(TOKEN_KEY, t);
               localStorage.setItem(EMAIL_KEY, email);
@@ -324,8 +413,10 @@ const League = () => {
 
 const SignIn = ({
   onSignedIn,
+  closed = false,
 }: {
   onSignedIn: (token: string, email: string) => void;
+  closed?: boolean;
 }) => {
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -362,12 +453,14 @@ const SignIn = ({
   return (
     <div className="mx-auto max-w-md rounded-2xl bg-white p-7 shadow-sm ring-1 ring-gray-200">
       <h2 className="text-xl font-bold text-[#020022]">
-        Register your child
+        {closed ? "Already registered? Sign in" : "Register your child"}
       </h2>
       <p className="mt-2 text-sm text-gray-600">
         {sent
           ? `We sent a 6-digit code to ${email}. It expires in 10 minutes.`
-          : "Enter your email and we will send you a 6-digit code. New to the academy or already training with us — it is the same first step."}
+          : closed
+            ? "Enter the email you registered with and we will send you a 6-digit code to see your balance and receipts."
+            : "Enter your email and we will send you a 6-digit code. New to the academy or already training with us — it is the same first step."}
       </p>
 
       <div className="mt-5 space-y-4">
@@ -441,7 +534,9 @@ const ExistingFamily = ({
   token,
   onDone,
   onSignOut,
+  closed = false,
 }: {
+  closed?: boolean;
   overview: PortalLeagueOverview;
   token: string;
   onDone: () => void;
@@ -451,7 +546,9 @@ const ExistingFamily = ({
   // A family with nobody on file is a new family. They came here to register a
   // child, so show them the form rather than an empty page with a button on
   // it — the extra click told them nothing they did not already know.
-  const [adding, setAdding] = useState(overview.players.length === 0);
+  const [adding, setAdding] = useState(
+    !closed && overview.players.length === 0
+  );
   const isNewFamily = overview.players.length === 0;
 
   return (
@@ -502,6 +599,7 @@ const ExistingFamily = ({
             player={p}
             token={token}
             open={openFor === p.userId}
+            closed={closed}
             onToggle={() =>
               setOpenFor(openFor === p.userId ? null : p.userId)
             }
@@ -513,7 +611,7 @@ const ExistingFamily = ({
         ))}
       </div>
 
-      {overview.players.length > 0 && !adding && (
+      {overview.players.length > 0 && !adding && !closed && (
         <p className="mt-6 text-sm text-gray-600">
           Another child not shown here?{" "}
           <button
@@ -537,7 +635,9 @@ const PlayerRow = ({
   open,
   onToggle,
   onDone,
+  closed = false,
 }: {
+  closed?: boolean;
   player: PortalLeaguePlayer;
   token: string;
   open: boolean;
@@ -609,6 +709,8 @@ const PlayerRow = ({
           )}
           {reg ? (
             <StatusPill status={reg.status} />
+          ) : closed ? (
+            <span className="text-sm text-gray-500">Not registered</span>
           ) : (
             <button
               onClick={onToggle}

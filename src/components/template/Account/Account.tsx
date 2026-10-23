@@ -19,7 +19,8 @@ import {
 import BankLinks from "@/components/molecules/BankLinks/BankLinks";
 // During the indoor season a new player joins through /indoor (the season
 // roster and the $835 joining fee); /register only creates a membership.
-import { REGISTER_PATH } from "@/data/academy";
+import { PLAN_LABELS, REGISTER_PATH, type PlanKey } from "@/data/academy";
+import BringAFriend from "./BringAFriend";
 
 const PAY_TO_EMAIL = "Excelpro.Etransfer@gmail.com";
 
@@ -700,7 +701,7 @@ const PlayerCard = ({
         <h3 className="text-lg font-bold text-gray-900">{player.fullname}</h3>
         {player.activePlan && (
           <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-50 text-primary border border-red-100">
-            {player.activePlan}
+            {PLAN_LABELS[player.activePlan as PlanKey] ?? player.activePlan}
           </span>
         )}
         <StatusBadge player={player} />
@@ -991,6 +992,10 @@ const Account = () => {
                 onRefresh={() => loadMe(token, true)}
               />
             ))}
+
+            {me && me.players.length > 0 && (
+              <BringAFriend playerId={me.players[0].id} />
+            )}
           </div>
         )}
       </div>

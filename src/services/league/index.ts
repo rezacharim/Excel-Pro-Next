@@ -192,6 +192,8 @@ export interface BookTrialPayload {
   position?: string;
   preferredWhen?: string;
   howHeard?: string;
+  /** Player id of the family who shared a "bring a friend" link. */
+  referrerId?: number;
 }
 
 const parse = async (res: Response) => {

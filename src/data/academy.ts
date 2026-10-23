@@ -314,3 +314,29 @@ export const TRIALS_PATH = "/trials";
 /** The indoor sessions a trialist of this group could come to. */
 export const trialSessionsFor = (groupKey: string): Session[] =>
   SEASONS.indoor.sessions[groupKey] ?? [];
+
+// ---------------------------------------------------------------------------
+// WhatsApp and "bring a friend".
+
+/**
+ * The academy's WhatsApp number, digits only with country code — the same
+ * line as the phone number on the site. Change it here if WhatsApp runs on a
+ * different number.
+ */
+export const WHATSAPP_NUMBER = "16477037821";
+
+/** A wa.me link that opens a chat with the academy, message pre-typed. */
+export const whatsappHref = (message: string) =>
+  `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+
+/** A wa.me link that lets a parent pick a contact and send them a message. */
+export const whatsappShareHref = (message: string) =>
+  `https://wa.me/?text=${encodeURIComponent(message)}`;
+
+/**
+ * The link a current family shares with friends. `ref` is one of their
+ * player ids: the booking then shows in Dashboard → Trials as "Friend of
+ * <parent> (<child>)". It carries no name, so nothing personal is in the URL.
+ */
+export const friendInviteUrl = (playerId: number) =>
+  `https://www.excelproso.com${TRIALS_PATH}?for=free&src=friend&ref=${playerId}`;

@@ -11,6 +11,7 @@ import {
   SEASONS,
   groupByKey,
   trialSessionsFor,
+  whatsappHref,
 } from "@/data/academy";
 
 /**
@@ -48,7 +49,20 @@ const SRC_TO_SOURCE: Record<string, string> = {
   invite: "Invitation email",
   comeback: "Played with Excel Pro before",
   google: "Google",
+  friend: "Friend or family",
 };
+
+/** The message pre-typed when a parent taps "Message us on WhatsApp". */
+const whatsappMessage = (kind: Kind) =>
+  kind === "imodel"
+    ? `Hi Excel Pro, I'd like to book an ${IMODEL.name} trial for my child.`
+    : "Hi Excel Pro, I'd like to book a free session for my child.";
+
+const WhatsAppIcon = ({ className = "h-5 w-5" }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" className={className} fill="currentColor">
+    <path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2c0 1.3.9 2.5 1 2.7.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3Z" />
+  </svg>
+);
 
 const inputClass =
   "w-full rounded-lg border border-gray-300 px-3 py-2.5 text-[15px] outline-none transition focus:border-[#E43125] focus:ring-1 focus:ring-[#E43125]";
@@ -139,6 +153,8 @@ const Trials = () => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  // Player id of the family who shared the link ("bring a friend").
+  const [referrerId, setReferrerId] = useState<number | null>(null);
 
   // ?for= and ?src= from ads, emails and the rest of the site.
   useEffect(() => {
@@ -148,6 +164,11 @@ const Trials = () => {
     if (wanted === "imodel" && IMODEL.open) setKind("imodel");
     const src = SRC_TO_SOURCE[(q.get("src") ?? "").toLowerCase()];
     if (src) setForm((f) => ({ ...f, howHeard: src }));
+    const ref = Number(q.get("ref"));
+    if (Number.isInteger(ref) && ref > 0) {
+      setReferrerId(ref);
+      setForm((f) => ({ ...f, howHeard: f.howHeard || "Friend or family" }));
+    }
     if (wanted) {
       document.getElementById("book")?.scrollIntoView({ behavior: "smooth" });
     }
@@ -197,6 +218,7 @@ const Trials = () => {
       ...(form.position.trim() ? { position: form.position.trim() } : {}),
       preferredWhen: `${label} · ${form.session || "any session"}`,
       ...(form.howHeard ? { howHeard: form.howHeard } : {}),
+      ...(referrerId ? { referrerId } : {}),
     };
     try {
       await bookTrial(payload);
@@ -310,6 +332,17 @@ const Trials = () => {
               />
             )}
           </div>
+          <p className="mt-5 text-sm text-gray-300">
+            Rather message?{" "}
+            <a
+              href={whatsappHref(whatsappMessage(kind))}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-semibold text-[#25D366] underline"
+            >
+              <WhatsAppIcon className="h-4 w-4" /> Chat with us on WhatsApp
+            </a>
+          </p>
         </div>
       </div>
 
@@ -382,6 +415,21 @@ const Trials = () => {
           <p className="mt-1 text-sm text-gray-600">
             Takes a minute. We email you the date and time to come.
           </p>
+          {referrerId && (
+            <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-gray-800">
+              A family who trains with us invited you — welcome! Your first
+              session is free.
+            </p>
+          )}
+          <a
+            href={whatsappHref(whatsappMessage(kind))}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1ebe5a]"
+          >
+            <WhatsAppIcon />
+            Rather message? Book on WhatsApp
+          </a>
 
           <div className="mt-6 space-y-5">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -490,6 +538,15 @@ const Trials = () => {
               Bring soccer cleats, shin guards and water. Questions? Call{" "}
               <a href="tel:+16477037821" className="underline">
                 +1 647-703-7821
+              </a>{" "}
+              or{" "}
+              <a
+                href={whatsappHref(whatsappMessage(kind))}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                message us on WhatsApp
               </a>
               .
             </p>

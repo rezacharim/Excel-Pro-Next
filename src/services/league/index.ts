@@ -31,7 +31,7 @@ export interface LeagueSeason {
   lateFeeFrom: string | null;
   spotsDisplay: "count" | "threshold" | "status" | "hidden";
   slug: string | null;
-  kind: "league" | "indoor";
+  kind: "league" | "indoor" | "imodel";
   tagline: string | null;
   /** What the money being collected now actually buys, e.g. "Covers March & April". */
   paymentCoversNote: string | null;
@@ -167,6 +167,22 @@ export interface PublicRegisterPayload {
   parentSignature?: string;
   /** Rowan's Law confirmation. Valid 12 months. */
   acceptedConcussion?: boolean;
+  /** I-Model Team only: the personal link from the offer email. */
+  offerToken?: string;
+}
+
+/** Who an I-Model offer link was sent for — prefills the form. */
+export interface ImodelOffer {
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string | null;
+  gender: string | null;
+  ageGroup: string;
+  parentName: string;
+  email: string;
+  phone: string;
+  city: string | null;
+  alreadyRegistered: boolean;
 }
 
 export interface PortalRegisterPayload {
@@ -227,6 +243,13 @@ export const getLeagueSeason = async (
 ): Promise<LeagueSeason> =>
   parse(
     await fetch(`${API}/league/season${slug ? `/${slug}` : ""}`, {
+      cache: "no-store",
+    })
+  );
+
+export const getImodelOffer = async (token: string): Promise<ImodelOffer> =>
+  parse(
+    await fetch(`${API}/league/imodel-offer/${encodeURIComponent(token)}`, {
       cache: "no-store",
     })
   );

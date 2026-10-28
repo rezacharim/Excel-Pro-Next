@@ -378,6 +378,20 @@ const Trials = () => {
                 Your child joins a regular session for their age group. Our
                 coaches watch, and we tell you afterwards whether there is a
                 place on the squad. The trial is free.
+                <span className="mt-2 block">
+                  Selected players: <strong>${IMODEL.fee.toLocaleString("en-CA")}</strong>{" "}
+                  for the summer season, or{" "}
+                  <strong className="text-[#E43125]">
+                    ${IMODEL.earlyBird.toLocaleString("en-CA")} early bird
+                  </strong>{" "}
+                  when paid in full by{" "}
+                  {new Date(`${IMODEL.earlyBirdBy}T12:00:00`).toLocaleDateString("en-CA", {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                  .
+                </span>
               </Info>
               <Info title="Trial sessions">
                 {imodelSessionLines().map((line) => (

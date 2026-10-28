@@ -303,6 +303,17 @@ export const IMODEL = {
   agesText: "U13 to U16",
   /** Which indoor training group each I-Model age trains with. */
   trainsWith: { U13: "U13-U14", U14: "U13-U14", U15: "U15-U18", U16: "U15-U18" } as Record<string, string>,
+  /**
+   * Summer 2027 fee, confirmed by Reza 2026-10-28: $1,200, or $1,050 early
+   * bird when paid in full by January 31, 2027. Shown on /trials. The amounts
+   * actually charged come from the I-Model season in Dashboard → League →
+   * Season settings — change both together.
+   */
+  fee: 1200,
+  earlyBird: 1050,
+  earlyBirdBy: "2027-01-31",
+  /** Where a family offered a spot registers (personal link from the email). */
+  registerPath: "/imodel",
 } as const;
 
 /** A free first session at a regular training — any age the academy trains. */

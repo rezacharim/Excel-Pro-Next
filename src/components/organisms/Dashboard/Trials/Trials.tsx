@@ -9,6 +9,7 @@ import {
   Phone,
   RefreshCw,
   Send,
+  Trophy,
   X,
 } from "lucide-react";
 import { IMODEL, SEASONS } from "@/data/academy";
@@ -21,6 +22,11 @@ import { IMODEL, SEASONS } from "@/data/academy";
  * you press "Send invitation", pick the day and time, and the family gets an
  * email with the date, the place and what to bring. After the session, set
  * the status: attended → offered a place → joined.
+ *
+ * I-Model Team: after the trial press "Offer a spot". The family gets an
+ * email with their personal registration link (the team is by invitation,
+ * so that link is the only way to register) and the status becomes
+ * "Offered a place". It turns to "Joined" by itself when they register.
  *
  * The backend stores the kind and the preferred session in `preferredWhen`
  * ("I-Model trial · Monday 5–6 pm"), so no database change was needed.
@@ -47,6 +53,7 @@ interface TrialBooking {
   status: Status;
   coachNotes: string | null;
   scheduledFor: string | null;
+  offerSentAt?: string | null;
   createdAt: string;
 }
 
@@ -131,6 +138,7 @@ const TrialsAdmin = () => {
   const [tab, setTab] = useState("todo");
   const [kind, setKind] = useState<"all" | Kind>("all");
   const [inviting, setInviting] = useState<TrialBooking | null>(null);
+  const [offering, setOffering] = useState<TrialBooking | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const auth = useMemo(
@@ -272,6 +280,11 @@ const TrialsAdmin = () => {
                       <Mail size={14} /> {t.email}
                     </a>
                   </p>
+                  {t.offerSentAt && (
+                    <p className="mr-2 mt-2 inline-flex items-center gap-1 rounded-lg bg-purple-50 px-2 py-1 text-sm text-purple-800">
+                      <Trophy size={14} /> {IMODEL.name} offer sent {shortDate(t.offerSentAt)}
+                    </p>
+                  )}
                   {t.scheduledFor && (
                     <p className="mt-2 inline-flex items-center gap-1 rounded-lg bg-green-50 px-2 py-1 text-sm text-green-800">
                       <CalendarClock size={14} /> Invited for {whenTextOf(new Date(t.scheduledFor))}
@@ -294,6 +307,14 @@ const TrialsAdmin = () => {
                   >
                     <Send size={15} /> {t.scheduledFor ? "Send new date" : "Send invitation"}
                   </button>
+                  {canOffer(t) && t.status !== "joined" && (
+                    <button
+                      onClick={() => setOffering(t)}
+                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#020022] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1a1840]"
+                    >
+                      <Trophy size={15} /> {t.offerSentAt ? "Resend offer" : "Offer a spot"}
+                    </button>
+                  )}
                   <select
                     value={t.status}
                     onChange={(e) => patch(t.id, { status: e.target.value as Status })}
@@ -326,9 +347,168 @@ const TrialsAdmin = () => {
         />
       )}
 
+      {offering && (
+        <OfferDialog
+          trial={offering}
+          auth={auth}
+          onClose={() => setOffering(null)}
+          onSent={(saved) => setRows((rs) => rs.map((r) => (r.id === saved.id ? saved : r)))}
+        />
+      )}
+
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 rounded-lg bg-[#020022] px-4 py-3 text-sm text-white shadow-lg">{toast}</div>
       )}
+    </div>
+  );
+};
+
+/** I-Model trials, plus any trialist in an I-Model age group. */
+const canOffer = (t: TrialBooking) =>
+  kindOf(t) === "imodel" || (IMODEL.ages as readonly string[]).includes(t.ageGroup);
+
+const money = (n: number) => `$${n.toLocaleString("en-CA")}`;
+
+/**
+ * Offer an I-Model spot. Sends the email, then shows the personal link so it
+ * can also go out on WhatsApp — many parents read that before email.
+ */
+const OfferDialog = ({
+  trial,
+  auth,
+  onClose,
+  onSent,
+}: {
+  trial: TrialBooking;
+  auth: Record<string, string>;
+  onClose: () => void;
+  onSent: (saved: TrialBooking) => void;
+}) => {
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [link, setLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const early =
+    new Date(`${IMODEL.earlyBirdBy}T23:59:59`).getTime() >= Date.now();
+  const byText = new Date(`${IMODEL.earlyBirdBy}T12:00:00`).toLocaleDateString(
+    "en-CA",
+    { month: "long", day: "numeric" }
+  );
+
+  const send = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_URL}/league/admin/trials/${trial.id}/offer`, {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify(note.trim() ? { note: note.trim() } : {}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || "The offer could not be sent");
+      const { offerUrl, ...saved } = data;
+      onSent(saved as TrialBooking);
+      setLink(offerUrl);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const whatsapp = link
+    ? `https://wa.me/${trial.phone.replace(/\D/g, "").replace(/^(?=\d{10}$)/, "1")}?text=${encodeURIComponent(
+        `Hi ${trial.parentName || ""}, congratulations — ${trial.firstName} has been offered a spot on the Excel Pro ${IMODEL.name} for the ${IMODEL.league}! ` +
+          (early
+            ? `Early bird ${money(IMODEL.earlyBird)} when paid in full by ${byText} (regular ${money(IMODEL.fee)}). `
+            : "") +
+          `Register here: ${link}`
+      )}`
+    : "";
+
+  const copy = async () => {
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      window.prompt("Copy this link:", link);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
+      <div className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
+        <button onClick={onClose} className="absolute right-4 top-4 text-gray-400 hover:text-gray-600" aria-label="Close">
+          <X size={20} />
+        </button>
+        <h2 className="text-lg font-bold">Offer an {IMODEL.name} spot</h2>
+        <p className="mb-4 text-sm text-gray-500">
+          {trial.firstName} {trial.lastName} · {trial.ageGroup}
+        </p>
+
+        {link ? (
+          <>
+            <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">
+              Offer emailed to <strong>{trial.email}</strong>. You can also send
+              the link yourself:
+            </p>
+            <p className="mt-3 break-all rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-700">{link}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <a
+                href={whatsapp}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg bg-[#25D366] px-4 py-2 text-sm font-semibold text-white"
+              >
+                Send on WhatsApp
+              </a>
+              <button onClick={copy} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                {copied ? "Copied ✓" : "Copy link"}
+              </button>
+              <button onClick={onClose} className="ml-auto rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                Done
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+              <strong>{trial.email}</strong> gets a congratulations email with a
+              personal link to register and pay
+              {early
+                ? ` — early bird ${money(IMODEL.earlyBird)} if paid in full by ${byText}, regular ${money(IMODEL.fee)}.`
+                : ` — ${money(IMODEL.fee)}.`}{" "}
+              Only families you offer a spot can register.
+            </div>
+            <label className="mt-3 block text-sm">
+              <span className="mb-1 block text-gray-700">Extra line in the email (optional)</span>
+              <input
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="e.g. Great energy and first touch at the trial!"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2"
+              />
+            </label>
+            {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={onClose} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                Cancel
+              </button>
+              <button
+                onClick={send}
+                disabled={busy}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#020022] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              >
+                {busy && <Loader2 className="animate-spin" size={16} />} Send offer
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 };

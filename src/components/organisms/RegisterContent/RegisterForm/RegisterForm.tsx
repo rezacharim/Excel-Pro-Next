@@ -3,7 +3,7 @@ import { useRegisterStepStore } from "@/stores/registerStepStore";
 import Step from "@/components/atoms/Step/Step";
 import { steps, TOTAL_STEPS } from "./data";
 // import PaymentPage from "../../StripeElement/PaymentPage";
-import Etransfer from "../../Etransfer/Etransfer";
+import RegisterDone from "./RegisterDone";
 
 const RegisterForm = () => {
   const { step } = useRegisterStepStore();
@@ -12,11 +12,7 @@ const RegisterForm = () => {
 
 
   if (step > TOTAL_STEPS) {
-    return (
-      <div className="my-12 flex items-center justify-center">
-        <Etransfer />
-      </div>
-    );
+    return <RegisterDone />;
   }
 
   return (

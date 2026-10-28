@@ -17,9 +17,10 @@ import {
 } from "@/services/portal";
 
 import BankLinks from "@/components/molecules/BankLinks/BankLinks";
-// During the indoor season a new player joins through /indoor (the season
-// roster and the $835 joining fee); /register only creates a membership.
-import { PLAN_LABELS, REGISTER_PATH, type PlanKey } from "@/data/academy";
+// "Register a player" / "Add another player" go to /register: families on
+// this page already train with the academy, and /register asks only new
+// families to pay. New families join the season through /indoor.
+import { PLAN_LABELS, type PlanKey } from "@/data/academy";
 import BringAFriend from "./BringAFriend";
 
 const PAY_TO_EMAIL = "Excelpro.Etransfer@gmail.com";
@@ -931,7 +932,7 @@ const Account = () => {
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <Link
-                  href={REGISTER_PATH}
+                  href="/register"
                   className="px-4 py-2 text-sm font-semibold bg-primary hover:bg-[#c9281e] text-white rounded-md transition-colors"
                 >
                   + Add another player
@@ -965,7 +966,7 @@ const Account = () => {
                   you won&apos;t need another sign-in code.
                 </p>
                 <Link
-                  href={REGISTER_PATH}
+                  href="/register"
                   className="mt-5 inline-block px-6 py-3 bg-primary hover:bg-[#c9281e] text-white rounded-md font-semibold transition-colors"
                 >
                   Register a player

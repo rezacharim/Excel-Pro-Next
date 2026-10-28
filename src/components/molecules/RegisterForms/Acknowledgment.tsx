@@ -235,6 +235,20 @@ const Acknowledgment: NextPage = () => {
         if (registeredUser.id) {
           localStorage.setItem("userId", registeredUser.id.toString());
         }
+        // For the last screen: who was registered, and whether they were
+        // already on file (a member updating details, not a new player).
+        try {
+          sessionStorage.setItem(
+            "registerDone",
+            JSON.stringify({
+              name: userFormData.fullname || "",
+              email: userFormData.email || "",
+              alreadyOnFile: !!registeredUser.alreadyOnFile,
+            })
+          );
+        } catch {
+          /* private mode — the last screen still works without it */
+        }
 
         setIsLoading(false);
         setStep(step + 1);

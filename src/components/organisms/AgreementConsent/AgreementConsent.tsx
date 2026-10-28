@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ACKNOWLEDGEMENTS,
-  AGREEMENT_INTRO,
-  AGREEMENT_SECTIONS,
-  AGREEMENT_TITLE,
-  AGREEMENT_VERSION,
-} from "./agreementText";
+  AGREEMENT_TEXTS,
+  POLICIES_PATH,
+  type AgreementVariant,
+} from "./agreementTexts";
+
+export { AGREEMENT_TEXTS, POLICIES_PATH };
+export type { AgreementVariant };
+import { AGREEMENT_VERSION } from "./agreementText";
 
 // Brand colours. If these don't match the rest of the site, change them here
 // only — nothing else in this file hardcodes a colour.
@@ -21,6 +23,11 @@ export type AgreementValue = {
   acceptedConcussion: boolean;
   consentPhoto: boolean | null;
   scrolledToEnd: boolean;
+  /**
+   * The separate, optional "send me emails" box — express consent under
+   * Canada's anti-spam law (CASL). Never pre-ticked, never required.
+   */
+  consentMarketing?: boolean;
 };
 
 export const EMPTY_AGREEMENT: AgreementValue = {
@@ -30,7 +37,16 @@ export const EMPTY_AGREEMENT: AgreementValue = {
   acceptedConcussion: false,
   consentPhoto: null,
   scrolledToEnd: false,
+  consentMarketing: false,
 };
+
+/** A blank answer for the given agreement. */
+export const emptyAgreement = (
+  variant: AgreementVariant = "league"
+): AgreementValue => ({
+  ...EMPTY_AGREEMENT,
+  agreementVersion: AGREEMENT_TEXTS[variant].version,
+});
 
 export function isAgreementComplete(v: AgreementValue) {
   return (
@@ -46,13 +62,22 @@ type Props = {
   onChange: (v: AgreementValue) => void;
   /** Set true after the parent form has been submitted once, to show errors. */
   showErrors?: boolean;
+  variant?: AgreementVariant;
+  /**
+   * Short form for quick sign-ups (trials): the summary and a link to the
+   * full text instead of the scrolling box.
+   */
+  compact?: boolean;
 };
 
 export default function AgreementConsent({
   value,
   onChange,
   showErrors = false,
+  variant = "league",
+  compact = false,
 }: Props) {
+  const T = AGREEMENT_TEXTS[variant];
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [progress, setProgress] = useState(0);
 
@@ -72,6 +97,11 @@ export default function AgreementConsent({
 
   // If the box is short enough that there's nothing to scroll, count it as read.
   useEffect(() => {
+    // The compact form has no box; the full text is one link away.
+    if (compact && !value.scrolledToEnd) {
+      set({ scrolledToEnd: true });
+      return;
+    }
     const el = scrollRef.current;
     if (el && el.scrollHeight <= el.clientHeight + 4 && !value.scrolledToEnd) {
       set({ scrolledToEnd: true });
@@ -88,13 +118,31 @@ export default function AgreementConsent({
         className="text-xl font-bold sm:text-2xl"
         style={{ color: NAVY }}
       >
-        {AGREEMENT_TITLE}
+        {T.title}
       </h2>
-      <p className="mt-1 text-sm text-slate-600">
-        Please read this in full. You&apos;ll confirm below before you can complete
-        registration.
-      </p>
+      {compact ? (
+        <p className="mt-1 text-sm text-slate-600">
+          Please read the{" "}
+          <a
+            href={`${POLICIES_PATH}#academy`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold underline underline-offset-2"
+            style={{ color: NAVY }}
+          >
+            full agreement
+          </a>{" "}
+          (opens in a new tab) — the main points are below.
+        </p>
+      ) : (
+        <p className="mt-1 text-sm text-slate-600">
+          Please read this in full. You&apos;ll confirm below before you can
+          complete registration.
+        </p>
+      )}
 
+      {!compact && (
+      <>
       {/* Scroll progress */}
       <div
         className="mt-4 h-1 w-full overflow-hidden rounded-full bg-slate-200"
@@ -116,9 +164,9 @@ export default function AgreementConsent({
         className="mt-2 h-72 overflow-y-auto rounded-lg border border-slate-300 bg-white p-4 text-sm leading-relaxed text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 sm:h-96 sm:p-6"
         style={{ ["--tw-ring-color" as string]: NAVY }}
       >
-        <p className="font-medium text-slate-900">{AGREEMENT_INTRO}</p>
+        <p className="font-medium text-slate-900">{T.intro}</p>
 
-        {AGREEMENT_SECTIONS.map((s) => (
+        {T.sections.map((s) => (
           <div key={s.heading} className="mt-6 first:mt-4">
             <h3 className="font-semibold" style={{ color: NAVY }}>
               {s.heading}
@@ -153,7 +201,7 @@ export default function AgreementConsent({
 
         <p className="mt-8 border-t border-slate-200 pt-4 text-xs text-slate-500">
           Excel Pro Soccer Academy · excelproso.com · 647-703-7821 · version{" "}
-          {AGREEMENT_VERSION}
+          {T.version}
         </p>
       </div>
 
@@ -161,6 +209,8 @@ export default function AgreementConsent({
         <p className="mt-2 text-xs text-slate-500">
           Scroll to the end of the agreement to continue.
         </p>
+      )}
+      </>
       )}
 
       {/* What you are agreeing to — read, not clicked */}
@@ -172,7 +222,7 @@ export default function AgreementConsent({
           In short, you are agreeing that
         </h3>
         <ul className="mt-2 space-y-2">
-          {ACKNOWLEDGEMENTS.map((a) => (
+          {T.acknowledgements.map((a) => (
             <li key={a} className="flex gap-2 text-sm leading-relaxed text-slate-700">
               <span aria-hidden style={{ color: RED }}>
                 &bull;
@@ -188,13 +238,23 @@ export default function AgreementConsent({
         <Check
           id="ac-agreement"
           checked={value.consentTerms}
-          onChange={(c) => set({ consentTerms: c })}
+          onChange={(c) =>
+            set(
+              T.photoRequired
+                ? { consentTerms: c, consentPhoto: c ? true : null }
+                : { consentTerms: c }
+            )
+          }
           invalid={err(!value.consentTerms)}
         >
-          I have read and I accept the agreement above and everything listed in
-          this summary. I have disclosed all relevant medical information for my
-          child, and I authorise Excel Pro staff to obtain emergency medical
-          treatment if I cannot be reached.
+          I have read and I accept the {compact ? "agreement" : "agreement above"}{" "}
+          and everything listed in this summary
+          {T.photoRequired
+            ? ", including the use of photos and video of my child"
+            : ""}
+          . I have disclosed all relevant medical information for my child, and
+          I authorise Excel Pro staff to obtain emergency medical treatment if I
+          cannot be reached.
         </Check>
 
         <Check
@@ -213,12 +273,14 @@ export default function AgreementConsent({
           >
             Ontario&apos;s Concussion Awareness Resources
           </a>{" "}
-          and the Excel Pro Concussion Code of Conduct in section 9. Required
-          every season by Rowan&apos;s Law.
+          and the Excel Pro Concussion Code of Conduct in{" "}
+          {T.concussionSection}. Required every season by Rowan&apos;s Law.
         </Check>
       </div>
 
-      {/* Photo consent — separate, optional either way */}
+      {/* Photo consent: a yes/no for the league agreement; part of the
+          agreement itself for academy programs. */}
+      {!T.photoRequired && (
       <fieldset
         className={`mt-5 rounded-lg border p-4 ${
           err(value.consentPhoto === null)
@@ -251,6 +313,27 @@ export default function AgreementConsent({
           </Radio>
         </div>
       </fieldset>
+      )}
+
+      {/* Email consent (CASL) — separate from the agreement, optional,
+          unticked. Registration does not depend on it. */}
+      <label className="mt-5 flex items-start gap-3 rounded-lg border border-slate-300 bg-white p-4 text-sm text-slate-700">
+        <input
+          type="checkbox"
+          checked={!!value.consentMarketing}
+          onChange={(e) => set({ consentMarketing: e.target.checked })}
+          className="mt-0.5 h-4 w-4 shrink-0"
+          style={{ accentColor: RED }}
+        />
+        <span>
+          <span className="font-semibold" style={{ color: NAVY }}>
+            Optional:
+          </span>{" "}
+          yes, Excel Pro Soccer Academy may email me news, program updates,
+          offers and invitations. I can unsubscribe at any time using the link
+          in every email.
+        </span>
+      </label>
 
       {/* Typed signature */}
       <div className="mt-5">
@@ -285,8 +368,9 @@ export default function AgreementConsent({
 
       {showErrors && !isAgreementComplete(value) && (
         <p className="mt-3 text-sm font-medium text-red-600">
-          Please tick both confirmations, choose a photo option, and type your
-          name.
+          {T.photoRequired
+            ? "Please tick both confirmations and type your name."
+            : "Please tick both confirmations, choose a photo option, and type your name."}
         </p>
       )}
     </section>

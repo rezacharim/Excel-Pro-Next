@@ -157,6 +157,16 @@ export interface PublicRegisterPayload {
   consentTerms: boolean;
   consentPhoto?: boolean;
   payInFull?: boolean;
+  /** Referral program: player id of the family whose link was used. */
+  referrerId?: number;
+  /** CASL express consent to promotional email. */
+  consentMarketing?: boolean;
+  /** Which wording of the agreement was accepted, e.g. "academy-1.0". */
+  agreementVersion?: string;
+  /** The parent's typed name — this is the signature. */
+  parentSignature?: string;
+  /** Rowan's Law confirmation. Valid 12 months. */
+  acceptedConcussion?: boolean;
 }
 
 export interface PortalRegisterPayload {
@@ -194,6 +204,11 @@ export interface BookTrialPayload {
   howHeard?: string;
   /** Player id of the family who shared a "bring a friend" link. */
   referrerId?: number;
+  agreementVersion?: string;
+  parentSignature?: string;
+  acceptedConcussion?: boolean;
+  consentPhoto?: boolean;
+  consentMarketing?: boolean;
 }
 
 const parse = async (res: Response) => {

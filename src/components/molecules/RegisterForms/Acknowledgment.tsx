@@ -13,6 +13,11 @@ import {
 import SoccerBackground from "./SoccerBackground";
 import PlayerPhotoUpload from "./AdditionalInformation";
 import { TextareaField, submitButtonClasses } from "./Fields";
+import AgreementConsent, {
+  emptyAgreement,
+  isAgreementComplete,
+  type AgreementValue,
+} from "@/components/organisms/AgreementConsent/AgreementConsent";
 
 const MEDICAL_NOTES_MAX = 1000;
 
@@ -28,7 +33,10 @@ const validationSchema = Yup.object({
     MEDICAL_NOTES_MAX,
     `Please use ${MEDICAL_NOTES_MAX} characters or fewer`
   ),
-  policy: Yup.boolean().oneOf([true], "You must agree to the policy"),
+  policy: Yup.boolean().oneOf(
+    [true],
+    "Please complete the agreement: both ticks and your typed name"
+  ),
 });
 
 /**
@@ -129,13 +137,15 @@ const Acknowledgment: NextPage = () => {
   const { division } = useDivisionStore();
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [agreement, setAgreement] = useState<AgreementValue>(() =>
+    emptyAgreement("academy")
+  );
 
   const {
     experienceLevel,
     player_positions,
     custom_position,
     medicalNotes,
-    policy,
     photoUrl,
     setExperienceLevel,
     setPlayerPosition,
@@ -180,6 +190,12 @@ const Acknowledgment: NextPage = () => {
           player_positions: userFormData.player_positions || "",
           activePlan: resolvePlan(division, userFormData.dateOfBirth),
           policy: true,
+          // What was agreed, by whom, and which wording — kept on the player.
+          agreementVersion: agreement.agreementVersion,
+          parentSignature: agreement.parentSignature.trim(),
+          acceptedConcussion: agreement.acceptedConcussion,
+          consentPhoto: agreement.consentPhoto ?? false,
+          consentMarketing: !!agreement.consentMarketing,
           custom_position: userFormData.custom_position || "",
           // Optional now — an empty string simply means "no photo yet".
           photoUrl: userFormData.photoUrl || "",
@@ -248,7 +264,8 @@ const Acknowledgment: NextPage = () => {
       player_positions: player_positions || "",
       custom_position: custom_position || "",
       medicalNotes: medicalNotes || "",
-      policy: policy || false,
+      // Always starts unticked: the agreement below must be completed on this visit.
+      policy: false,
     },
     validationSchema,
     onSubmit: async (values) => {
@@ -322,86 +339,20 @@ const Acknowledgment: NextPage = () => {
           <PlayerPhotoUpload value={photoUrl} onChange={setPhotoUrl} />
         </div>
 
+        {/* The academy agreement replaces the old policy paragraph, which
+            told parents the academy "shall not be responsible for any such
+            personal injury, death" — wording Ontario law will not enforce
+            against a child, with no refund policy and no Rowan's Law. */}
         <div className="mt-6 border rounded-lg p-5 bg-gray-50">
-          <div className="mb-2">
-            <h2 className="text-lg font-semibold mb-2">Policy Agreement</h2>
-            <div className="text-gray-700 mb-4 leading-relaxed text-sm">
-              <p className="mb-2">
-                I the parent or guardian of the above named player understand
-                and assume all risks involved in playing soccer, including the
-                risk of property damage, personal injury and death resulting
-                from any cause whatsoever, including but not limited to
-                collision with the ball, other players, persons, the ground,
-                goal post or other man-made objects, weather and field
-                conditions, traffic hazards while being transported to or from
-                any location.
-              </p>
-              <p className="mb-2">
-                I have considered these risks and hereby consent to the
-                Player&apos;s participation in Excel Pro Soccer Academy and
-                agree that Excel Pro Soccer Academy shall not be responsible for
-                any such personal injury, death or property loss.
-              </p>
-              <p className="mb-2">
-                I grant Excel Pro Soccer Academy the right to request any
-                participant, player, parent or volunteer to withdraw from the
-                program prior to its termination if the person is not acting in
-                a responsible, safe, fair and/or sportsmanlike manner.
-              </p>
-              <p className="mb-2">
-                I understand that the information collected on this form will be
-                used by the organization to establish my child&apos;s
-                eligibility to participate in their soccer program and to
-                contact me when required in respect to soccer related
-                activities. The names, addresses, phone numbers and email
-                addresses on this form may be shared with members of the team
-                that my child is on.
-              </p>
-              <p className="mb-2">
-                I agree to allow Excel Pro Soccer Academy to use the
-                player&apos;s image in photo or Video releases they deem
-                appropriate. I further acknowledge that the likeness of the
-                player may be captured and stored by other parents,
-                organizations and media companies without the knowledge or
-                consent of Excel Pro Soccer Academy.
-              </p>
-            </div>
-
-            <div className="flex items-center">
-              <input
-                id="policy"
-                name="policy"
-                type="checkbox"
-                checked={formik.values.policy}
-                onChange={(e) =>
-                  formik.setFieldValue("policy", e.target.checked)
-                }
-                aria-invalid={Boolean(errorFor("policy"))}
-                aria-describedby={
-                  errorFor("policy") ? "policy-error" : undefined
-                }
-                className="h-5 w-5 rounded border-gray-300 text-[#E43125] focus:ring-[#E43125]"
-              />
-              <label
-                htmlFor="policy"
-                className="ml-2 block text-gray-900 font-medium"
-              >
-                I agree to the policy{" "}
-                <span className="text-[#E43125]" aria-hidden="true">
-                  *
-                </span>
-              </label>
-            </div>
-            {errorFor("policy") && (
-              <p
-                id="policy-error"
-                role="alert"
-                className="mt-1 text-sm text-red-600"
-              >
-                {errorFor("policy")}
-              </p>
-            )}
-          </div>
+          <AgreementConsent
+            variant="academy"
+            value={agreement}
+            onChange={(v) => {
+              setAgreement(v);
+              formik.setFieldValue("policy", isAgreementComplete(v));
+            }}
+            showErrors={formik.submitCount > 0}
+          />
         </div>
 
         {/* Submit Button */}

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "../../atoms/Button/Button";
@@ -8,7 +8,7 @@ import TopBar from "@/components/molecules/TopBar/TobBar";
 import IndoorBanner from "@/components/molecules/IndoorBanner/IndoorBanner";
 // "Enroll now" goes straight to this season's registration (/indoor now,
 // /register in the outdoor season) instead of the program list.
-import { REGISTER_PATH } from "@/data/academy";
+import { REGISTER_PATH, rememberReferral } from "@/data/academy";
 
 // Animation variants
 import { menuVariants } from "./motions/menu.variant";
@@ -25,6 +25,11 @@ import Logo from "../../atoms/Logo/Logo";
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const router = useRouter();
+  // Referral program: remember ?ref= from any page a friend lands on, so a
+  // registration days later still credits the family who shared the link.
+  useEffect(() => {
+    rememberReferral(window.location.search);
+  }, []);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);

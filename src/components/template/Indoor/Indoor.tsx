@@ -15,7 +15,13 @@ import {
   SEASONS,
   TRIALS_PATH,
   groupByKey,
+  currentReferral,
 } from "@/data/academy";
+import AgreementConsent, {
+  emptyAgreement,
+  isAgreementComplete,
+  type AgreementValue,
+} from "@/components/organisms/AgreementConsent/AgreementConsent";
 
 // This page is always the indoor season, whichever season the rest of the
 // site is currently showing.
@@ -469,6 +475,17 @@ const IndoorForm = ({
     consentPhoto: false,
   });
   const [busy, setBusy] = useState(false);
+  const [agreement, setAgreement] = useState<AgreementValue>(() =>
+    emptyAgreement("academy")
+  );
+  // Show what is missing only after a first attempt, not while typing.
+  const [triedSubmit, setTriedSubmit] = useState(false);
+  // Referral program: the family whose link brought this one here, if any.
+  const [referrerId] = useState<number | null>(() =>
+    typeof window === "undefined"
+      ? null
+      : currentReferral(window.location.search)
+  );
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ amount: number; waitlisted: boolean } | null>(
     null
@@ -489,13 +506,23 @@ const IndoorForm = ({
     "postalCode",
   ];
   const ready =
-    required.every((k) => String(form[k] ?? "").trim()) && form.consentTerms;
+    required.every((k) => String(form[k] ?? "").trim()) &&
+    isAgreementComplete(agreement);
 
   const submit = async () => {
     setBusy(true);
     setError(null);
     try {
-      const reg = await registerForLeague(form);
+      const reg = await registerForLeague({
+        ...form,
+        consentTerms: agreement.consentTerms,
+        consentPhoto: agreement.consentPhoto ?? false,
+        agreementVersion: agreement.agreementVersion,
+        parentSignature: agreement.parentSignature.trim(),
+        acceptedConcussion: agreement.acceptedConcussion,
+        consentMarketing: !!agreement.consentMarketing,
+        ...(referrerId ? { referrerId } : {}),
+      });
       setDone({
         amount: reg.installments?.[0]?.amount ?? reg.feeTotal,
         waitlisted: reg.status === "waitlist",
@@ -573,6 +600,11 @@ const IndoorForm = ({
         Everything marked * is required. If your child already trains with us we
         will recognise them from the email address and charge the member rate.
       </p>
+      {referrerId && (
+        <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-gray-800">
+          A family who trains with us invited you — welcome to Excel Pro!
+        </p>
+      )}
 
       <div className="mt-6 space-y-5">
         <Field label="Age group" required>
@@ -690,32 +722,16 @@ const IndoorForm = ({
           />
         </Field>
 
-        <div className="space-y-3 rounded-lg bg-gray-50 p-4">
-          <label className="flex items-start gap-3 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              className="mt-1 h-4 w-4 accent-[#E43125]"
-              checked={form.consentTerms}
-              onChange={(e) => set("consentTerms", e.target.checked)}
-            />
-            <span>
-              I understand the spot is confirmed only once payment is received,
-              and I accept the academy terms.{" "}
-              <span className="text-[#E43125]">*</span>
-            </span>
-          </label>
-          <label className="flex items-start gap-3 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              className="mt-1 h-4 w-4 accent-[#E43125]"
-              checked={form.consentPhoto}
-              onChange={(e) => set("consentPhoto", e.target.checked)}
-            />
-            <span>
-              I consent to photos and video of my child being used by the
-              academy.
-            </span>
-          </label>
+        {/* The academy agreement: refunds, risk, Rowan's Law, photos.
+            It used to be one tick for "the academy terms" with no terms
+            anywhere to read. */}
+        <div className="rounded-lg bg-gray-50 p-4 sm:p-5">
+          <AgreementConsent
+            variant="academy"
+            value={agreement}
+            onChange={setAgreement}
+            showErrors={triedSubmit}
+          />
         </div>
 
         {error && (
@@ -724,9 +740,16 @@ const IndoorForm = ({
           </p>
         )}
 
+        {triedSubmit && !ready && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Please fill in every field marked * and complete the agreement
+            above.
+          </p>
+        )}
+
         <button
-          onClick={submit}
-          disabled={busy || !ready}
+          onClick={() => (ready ? submit() : setTriedSubmit(true))}
+          disabled={busy}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#E43125] py-3.5 font-semibold text-white transition hover:bg-[#c4291f] disabled:opacity-50 sm:w-auto sm:px-10"
         >
           {busy && <Spinner />}

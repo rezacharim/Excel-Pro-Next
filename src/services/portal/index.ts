@@ -37,9 +37,21 @@ export interface PortalPlayer {
   payments: PortalPayment[];
 }
 
+/** A friend who registered through the family's referral link. */
+export interface PortalReferral {
+  /** First name and last initial only. */
+  friend: string;
+  /** Paid and confirmed — the private session is earned. */
+  joined: boolean;
+  reward: "earned" | "booked" | "done" | null;
+  createdAt: string;
+}
+
 export interface PortalMe {
   email: string;
   players: PortalPlayer[];
+  /** Missing on an older server. */
+  referrals?: PortalReferral[];
 }
 
 export class PortalAuthError extends Error {

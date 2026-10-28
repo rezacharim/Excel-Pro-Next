@@ -84,6 +84,11 @@ const Footer = () => {
           <p>
             © {new Date().getFullYear()} Excel Pro Academy. All rights reserved.
           </p>
+          <p className="mt-2">
+            <Link href="/policies" className="underline underline-offset-2 hover:text-[#E43125]">
+              Agreement, refunds &amp; photo policy
+            </Link>
+          </p>
         </div>
       </div>
     </footer>

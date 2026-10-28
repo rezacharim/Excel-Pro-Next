@@ -12,7 +12,13 @@ import {
   groupByKey,
   trialSessionsFor,
   whatsappHref,
+  currentReferral,
 } from "@/data/academy";
+import AgreementConsent, {
+  emptyAgreement,
+  isAgreementComplete,
+  type AgreementValue,
+} from "@/components/organisms/AgreementConsent/AgreementConsent";
 
 /**
  * /trials — one page for both ways in:
@@ -155,6 +161,12 @@ const Trials = () => {
   const [done, setDone] = useState(false);
   // Player id of the family who shared the link ("bring a friend").
   const [referrerId, setReferrerId] = useState<number | null>(null);
+  // The child plays in a real session, so the same agreement as a full
+  // registration applies — in its short form.
+  const [agreement, setAgreement] = useState<AgreementValue>(() =>
+    emptyAgreement("academy")
+  );
+  const [triedSubmit, setTriedSubmit] = useState(false);
 
   // ?for= and ?src= from ads, emails and the rest of the site.
   useEffect(() => {
@@ -164,8 +176,8 @@ const Trials = () => {
     if (wanted === "imodel" && IMODEL.open) setKind("imodel");
     const src = SRC_TO_SOURCE[(q.get("src") ?? "").toLowerCase()];
     if (src) setForm((f) => ({ ...f, howHeard: src }));
-    const ref = Number(q.get("ref"));
-    if (Number.isInteger(ref) && ref > 0) {
+    const ref = currentReferral(window.location.search);
+    if (ref) {
       setReferrerId(ref);
       setForm((f) => ({ ...f, howHeard: f.howHeard || "Friend or family" }));
     }
@@ -198,7 +210,8 @@ const Trials = () => {
     !!form.ageGroup &&
     !!form.parentName.trim() &&
     /\S+@\S+\.\S+/.test(form.email) &&
-    form.phone.replace(/\D/g, "").length >= 10;
+    form.phone.replace(/\D/g, "").length >= 10 &&
+    isAgreementComplete(agreement);
 
   const submit = async () => {
     setBusy(true);
@@ -219,6 +232,11 @@ const Trials = () => {
       preferredWhen: `${label} · ${form.session || "any session"}`,
       ...(form.howHeard ? { howHeard: form.howHeard } : {}),
       ...(referrerId ? { referrerId } : {}),
+      agreementVersion: agreement.agreementVersion,
+      parentSignature: agreement.parentSignature.trim(),
+      acceptedConcussion: agreement.acceptedConcussion,
+      consentPhoto: agreement.consentPhoto ?? false,
+      consentMarketing: !!agreement.consentMarketing,
     };
     try {
       await bookTrial(payload);
@@ -523,13 +541,28 @@ const Trials = () => {
               </select>
             </Field>
 
+            <div className="rounded-lg bg-gray-50 p-4 sm:p-5">
+              <AgreementConsent
+                variant="academy"
+                compact
+                value={agreement}
+                onChange={setAgreement}
+                showErrors={triedSubmit}
+              />
+            </div>
+
             {error && (
               <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
             )}
+            {triedSubmit && !ready && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Please fill in every field marked * and complete the agreement.
+              </p>
+            )}
 
             <button
-              onClick={submit}
-              disabled={busy || !ready}
+              onClick={() => (ready ? submit() : setTriedSubmit(true))}
+              disabled={busy}
               className="w-full rounded-lg bg-[#E43125] py-3.5 font-semibold text-white transition hover:bg-[#c4291f] disabled:opacity-50 sm:w-auto sm:px-10"
             >
               {busy ? "Sending…" : kind === "imodel" ? "Request a trial" : "Book my free session"}

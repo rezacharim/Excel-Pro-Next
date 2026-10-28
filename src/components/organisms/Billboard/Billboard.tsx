@@ -9,6 +9,7 @@ import Link from "next/link";
 import { fetchAllImages } from "@/services/getAllImages";
 import {
   IMODEL,
+  REFERRAL,
   SEASONS,
   TRIALS_PATH,
   WINTER_LEAGUE_OPEN,
@@ -212,6 +213,23 @@ const indoorSlide = async (): Promise<HeroSlide | null> => {
   }
 };
 
+/** Referral program — for families already with the academy. */
+const referralSlide = (): HeroSlide | null =>
+  REFERRAL.open
+    ? {
+        id: "promo-referral",
+        image_url: "/images/billboard/Banner4.webp",
+        title: "Bring a friend",
+        href: "/account",
+        badge: "Bring a friend",
+        headline: `Bring a friend — earn a private session with ${REFERRAL.coach}`,
+        subtext:
+          "Every friend or family member who joins the Indoor Season through your link earns your child a private session at his gym — one-on-one or in a small group.",
+        ctaLabel: "Get my link",
+        urgency: [],
+      }
+    : null;
+
 /** I-Model trials, while they are open. Written here, so never stale. */
 const imodelSlide = (): HeroSlide | null =>
   IMODEL.open
@@ -308,7 +326,7 @@ const FALLBACK: HeroSlide[] = [
 
 const ROTATE_MS = 5000;
 const MAX_PHOTO_SLIDES = 10;
-const MAX_PROMO_SLIDES = 4;
+const MAX_PROMO_SLIDES = 5;
 
 /**
  * Home-page hero slideshow.
@@ -401,9 +419,11 @@ const Billboard = () => {
         buildPromoSlides(),
       ]);
       const imodel = imodelSlide();
+      const referral = referralSlide();
       const promos = [
         ...(indoor ? [indoor] : []),
         ...(imodel ? [imodel] : []),
+        ...(referral ? [referral] : []),
         ...announced,
       ].slice(
         0,

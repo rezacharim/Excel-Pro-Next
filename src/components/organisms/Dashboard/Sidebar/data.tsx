@@ -12,6 +12,7 @@ import {
   Settings,
   ClipboardList,
   Footprints,
+  Gift,
   Trophy,
   UserRound,
   UserCog,
@@ -48,6 +49,12 @@ export const navigationItems: NavigationItemsTypes[] = [
     id: 19,
     icon: <Footprints className="w-5 h-5 text-gray-500" />,
     label: "Trials",
+    active: false,
+  },
+  {
+    id: 20,
+    icon: <Gift className="w-5 h-5 text-gray-500" />,
+    label: "Referrals",
     active: false,
   },
   {

@@ -994,7 +994,11 @@ const Account = () => {
             ))}
 
             {me && me.players.length > 0 && (
-              <BringAFriend playerId={me.players[0].id} />
+              <BringAFriend
+                playerId={me.players[0].id}
+                playerName={me.players[0].fullname}
+                referrals={me.referrals ?? []}
+              />
             )}
           </div>
         )}

@@ -334,9 +334,58 @@ export const whatsappShareHref = (message: string) =>
   `https://wa.me/?text=${encodeURIComponent(message)}`;
 
 /**
- * The link a current family shares with friends. `ref` is one of their
- * player ids: the booking then shows in Dashboard → Trials as "Friend of
- * <parent> (<child>)". It carries no name, so nothing personal is in the URL.
+ * Referral program (Reza, 2026-10-28): a family that brings a friend or
+ * relative who registers and pays for the Indoor Season earns a private
+ * session with Coach Reza Abedian at his private gym (one-on-one or a small
+ * group; date and time arranged with the family) — one per friend.
+ */
+export const REFERRAL = {
+  open: true,
+  coach: "Coach Reza Abedian",
+  reward: "a private training session with Coach Reza Abedian",
+  where: "at his private gym — one-on-one or in a small group, on a date and time arranged with you",
+} as const;
+
+/**
+ * The link a current family shares. `ref` is one of their player ids: it
+ * carries no name, so nothing personal is in the URL. It goes to /indoor —
+ * registration is what earns the reward — and the id is remembered for 60
+ * days, so a friend who books a free session first and registers later
+ * still counts.
  */
 export const friendInviteUrl = (playerId: number) =>
+  `https://www.excelproso.com/indoor?src=friend&ref=${playerId}`;
+
+/** Free-session version of the same link, for friends who want to try first. */
+export const friendTrialUrl = (playerId: number) =>
   `https://www.excelproso.com${TRIALS_PATH}?for=free&src=friend&ref=${playerId}`;
+
+const REF_KEY = "ep_ref";
+const REF_DAYS = 60;
+
+/** Remember ?ref= from any page. Never throws. */
+export const rememberReferral = (search: string) => {
+  try {
+    const ref = Number(new URLSearchParams(search).get("ref"));
+    if (Number.isInteger(ref) && ref > 0) {
+      localStorage.setItem(REF_KEY, JSON.stringify({ ref, at: Date.now() }));
+    }
+  } catch {
+    /* storage blocked — the URL still carries it on that page */
+  }
+};
+
+/** The referring player id from the URL, or remembered within 60 days. */
+export const currentReferral = (search: string): number | null => {
+  const fromUrl = Number(new URLSearchParams(search).get("ref"));
+  if (Number.isInteger(fromUrl) && fromUrl > 0) return fromUrl;
+  try {
+    const raw = localStorage.getItem(REF_KEY);
+    if (!raw) return null;
+    const { ref, at } = JSON.parse(raw) as { ref: number; at: number };
+    if (Date.now() - at > REF_DAYS * 86_400_000) return null;
+    return Number.isInteger(ref) && ref > 0 ? ref : null;
+  } catch {
+    return null;
+  }
+};

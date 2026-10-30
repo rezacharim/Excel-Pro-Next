@@ -102,6 +102,42 @@ export interface RecordPaymentDto {
    */
   periodStart?: string;
   periodEnd?: string;
+  /**
+   * A season registration (Indoor, Winter League…) of this player that the
+   * same money also counts towards, so a payment is entered once.
+   */
+  registrationId?: number;
+}
+
+/** One payment of a player, as listed in the Payments dialog. */
+export interface PlayerPayment {
+  id: number;
+  amount: number;
+  method: string;
+  type: string;
+  status: string;
+  periodLabel: string | null;
+  note: string | null;
+  /** The day the money arrived. */
+  paidAt: string;
+  subscriptionEndDate: string | null;
+  isFirstTimePayment: boolean;
+  countsToward: {
+    registrationId: number;
+    seasonName: string;
+    ageGroup: string;
+    installment: 1 | 2;
+  } | null;
+}
+
+/** PATCH /membership/payments/:id — only the fields sent change. */
+export interface UpdatePaymentDto {
+  amount?: number;
+  paidAt?: string;
+  method?: PaymentMethod;
+  note?: string;
+  /** A registration id, or null to stop counting towards any season. */
+  registrationId?: number | null;
 }
 
 /** The four real programs a player can belong to. */

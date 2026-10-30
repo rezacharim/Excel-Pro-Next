@@ -19,6 +19,7 @@ import {
   PauseCircle,
   Phone,
   PlayCircle,
+  Receipt,
   RefreshCw,
   RotateCcw,
   Search,
@@ -64,6 +65,7 @@ import {
 } from "./types";
 import { rowsToPlayers } from "./importPlayers";
 import InviteBackDialog from "./InviteBackDialog";
+import PaymentsDialog from "./PaymentsDialog";
 import PaidPeriodPicker, {
   approxMonths,
   dayOf,
@@ -477,6 +479,10 @@ const Memberships: NextPage = () => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("etransfer");
   const [paymentNote, setPaymentNote] = useState("");
   const [paymentPaidAt, setPaymentPaidAt] = useState(todayInputValue);
+  // Season registration the payment also counts toward ("" = none).
+  const [paymentLinkTo, setPaymentLinkTo] = useState("");
+  // Payments dialog (list / edit / delete) — the player it is open for.
+  const [paymentsForId, setPaymentsForId] = useState<number | null>(null);
   const [renewalDate, setRenewalDate] = useState("");
   const [renewalStartDate, setRenewalStartDate] = useState("");
   const [renewalNote, setRenewalNote] = useState("");
@@ -832,6 +838,14 @@ const Memberships: NextPage = () => {
     setPaymentNote("");
     setPaymentPaidAt(todayInputValue());
     {
+      // Money for a season the family still owes on is counted toward it by
+      // default, so a payment is entered once and shows on Dashboard → League.
+      const open = (row.programs ?? []).find(
+        (p) => p.status !== "withdrawn" && p.balance > 0
+      );
+      setPaymentLinkTo(open ? String(open.registrationId) : "");
+    }
+    {
       const suggested = suggestedPeriod(
         row.currentSubscriptionEndDate,
         todayInputValue()
@@ -1119,6 +1133,7 @@ const Memberships: NextPage = () => {
             ? { periodLabel: paymentPeriodLabel.trim() }
             : {}),
           ...(paymentNote.trim() ? { note: paymentNote.trim() } : {}),
+          ...(paymentLinkTo ? { registrationId: Number(paymentLinkTo) } : {}),
         };
         try {
           setIsSubmitting(true);
@@ -2367,6 +2382,16 @@ const Memberships: NextPage = () => {
               </button>
             )}
             <button
+              onClick={() => {
+                closeRowMenu();
+                setPaymentsForId(menuRow.id);
+              }}
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <Receipt size={16} className="text-gray-600" />
+              Payments (edit / delete)
+            </button>
+            <button
               onClick={() => openModal("set-renewal", menuRow)}
               className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
             >
@@ -2592,6 +2617,12 @@ const Memberships: NextPage = () => {
                     <dd className="text-gray-800">
                       {toNumber(detailRow.subscriptionCounter)} payment
                       {toNumber(detailRow.subscriptionCounter) === 1 ? "" : "s"}
+                      <button
+                        onClick={() => setPaymentsForId(detailRow.id)}
+                        className="ml-2 text-xs font-medium text-[#E43125] hover:underline"
+                      >
+                        View / edit
+                      </button>
                     </dd>
                   </div>
                   <div className="flex justify-between gap-3">
@@ -2927,6 +2958,38 @@ const Memberships: NextPage = () => {
                       one family payment is split between two children.
                     </p>
                   </div>
+                  {(modalRow.programs ?? []).some(
+                    (p) => p.status !== "withdrawn"
+                  ) && (
+                    <div>
+                      <label
+                        htmlFor="payment-link"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Also counts toward
+                      </label>
+                      <select
+                        id="payment-link"
+                        value={paymentLinkTo}
+                        onChange={(e) => setPaymentLinkTo(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                      >
+                        <option value="">Membership only (no season)</option>
+                        {(modalRow.programs ?? [])
+                          .filter((p) => p.status !== "withdrawn")
+                          .map((p) => (
+                            <option key={p.registrationId} value={p.registrationId}>
+                              {p.seasonName} · {p.ageGroup} — paid ${p.amountPaid} of $
+                              {p.feeTotal}
+                            </option>
+                          ))}
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">
+                        The same money is shown on Dashboard → League, so
+                        don&apos;t record it there again.
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <label
                       htmlFor="payment-note"
@@ -3948,6 +4011,23 @@ const Memberships: NextPage = () => {
             setInviteBackIds(null);
             clearSelection();
             showToast("success", message);
+            fetchOverview();
+          }}
+        />
+      )}
+
+      {paymentsForId !== null && (
+        <PaymentsDialog
+          playerId={paymentsForId}
+          playerName={
+            rows.find((r) => r.id === paymentsForId)?.fullname || "Player"
+          }
+          programs={rows.find((r) => r.id === paymentsForId)?.programs ?? []}
+          token={savedToken}
+          onClose={() => setPaymentsForId(null)}
+          // The dialog shows its own confirmation; just refresh the list so
+          // the payment count, paid dates and season badges update behind it.
+          onChanged={() => {
             fetchOverview();
           }}
         />

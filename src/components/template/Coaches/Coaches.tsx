@@ -121,7 +121,7 @@ const Coaches = ({ coaches: fromApi }: { coaches: ApiCoach[] }) => {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.9, duration: 0.6 }}
             >
-              Our team of 12 professional coaches develops players ages {AGE_RANGE.text}
+              Our coaching team develops players ages {AGE_RANGE.text}
               with passion, experience and a proven training philosophy.
             </motion.p>
           </motion.div>
